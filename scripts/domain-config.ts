@@ -26,7 +26,6 @@ export const domains: DomainConfig[] = [
     tools: [
       "get_document_info",
       "get_current_page",
-      "get_pages",
       "set_current_page",
       "create_page",
       "rename_page",
@@ -38,14 +37,10 @@ export const domains: DomainConfig[] = [
     description: "Tools for reading node data, searching, and exporting",
     tools: [
       "get_node_info",
-      "get_node_css",
       "search_nodes",
       "export_node_as_image",
       "get_selection",
-      "read_my_design",
       "set_selection",
-      "zoom_into_view",
-      "set_viewport",
     ],
   },
   {
@@ -53,12 +48,8 @@ export const domains: DomainConfig[] = [
     label: "Creation",
     description: "Tools for creating shapes, frames, and text nodes",
     tools: [
-      "create_rectangle",
-      "create_ellipse",
-      "create_line",
       "create_section",
       "create_node_from_svg",
-      "create_boolean_operation",
       "create_frame",
       "create_auto_layout",
       "create_text",
@@ -67,36 +58,12 @@ export const domains: DomainConfig[] = [
   {
     id: "modification",
     label: "Modification",
-    description: "Tools for moving, resizing, deleting, and reparenting nodes",
+    description: "Tools for patching, deleting, cloning, and reparenting nodes",
     tools: [
-      "move_node",
-      "resize_node",
+      "patch_nodes",
       "delete_node",
       "clone_node",
       "insert_child",
-    ],
-  },
-  {
-    id: "appearance",
-    label: "Appearance",
-    description: "Tools for fills, strokes, corners, opacity, effects, and constraints",
-    tools: [
-      "set_fill_color",
-      "set_stroke_color",
-      "set_corner_radius",
-      "set_opacity",
-      "set_effects",
-      "set_constraints",
-      "set_export_settings",
-      "set_node_properties",
-    ],
-  },
-  {
-    id: "layout",
-    label: "Layout",
-    description: "Tools for updating auto-layout and frame properties",
-    tools: [
-      "update_frame",
     ],
   },
   {
@@ -158,7 +125,6 @@ export const domains: DomainConfig[] = [
     description: "Tools for modifying text content, properties, and fonts",
     tools: [
       "set_text_content",
-      "set_text_properties",
       "scan_text_nodes",
       "get_available_fonts",
     ],

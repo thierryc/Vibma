@@ -36,25 +36,7 @@ const insertItem = z.object({
 // ─── MCP Registration ────────────────────────────────────────────
 
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "move_node",
-    "Move nodes to new positions. Batch: pass multiple items.",
-    { items: flexJson(z.array(moveItem)).describe("Array of {nodeId, x, y}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("move_node", params)); }
-      catch (e) { return mcpError("Error moving nodes", e); }
-    }
-  );
-
-  server.tool(
-    "resize_node",
-    "Resize nodes. Batch: pass multiple items.",
-    { items: flexJson(z.array(resizeItem)).describe("Array of {nodeId, width, height}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("resize_node", params)); }
-      catch (e) { return mcpError("Error resizing nodes", e); }
-    }
-  );
+  // move_node and resize_node merged into patch_nodes
 
   server.tool(
     "delete_node",
@@ -89,7 +71,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function moveSingle(p: any) {
+export async function moveSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("x" in node)) throw new Error(`Node does not support position: ${p.nodeId}`);
@@ -98,7 +80,7 @@ async function moveSingle(p: any) {
   return {};
 }
 
-async function resizeSingle(p: any) {
+export async function resizeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if ("resize" in node) (node as any).resize(p.width, p.height);

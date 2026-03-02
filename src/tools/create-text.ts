@@ -17,7 +17,7 @@ const textItem = z.object({
   fontStyle: z.string().optional().describe("Font style, e.g. 'Regular', 'Bold', 'Italic' (default: derived from fontWeight). Overrides fontWeight when set."),
   fontSize: z.coerce.number().optional().describe("Font size (default: 14)"),
   fontWeight: z.coerce.number().optional().describe("Font weight: 100-900 (default: 400). Ignored when fontStyle is set."),
-  fontColor: flexJson(S.colorRgba).optional().describe('Font color. Hex "#000000" or {r,g,b,a?} 0-1. Default: black.'),
+  fontColor: flexJson(S.colorRgba).optional().describe('Font color. Default: black.'),
   fontColorVariableId: z.string().optional().describe("Bind a color variable to the text fill instead of hardcoded fontColor."),
   fontColorStyleName: z.string().optional().describe("Apply a paint style to the text fill by name (case-insensitive). Overrides fontColor."),
   parentId: S.parentId,

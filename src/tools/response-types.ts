@@ -39,7 +39,7 @@ export interface Vector2 {
 // ─── Batch Item Results ────────────────────────────────────────
 // These are the per-item shapes inside BatchResult<T>.results[]
 
-/** Most creation tools: create_rectangle, create_ellipse, etc. */
+/** Most creation tools */
 export interface IdResult {
   id: string;
 }
@@ -48,12 +48,6 @@ export interface IdResult {
 export interface IdWithWarningResult {
   id: string;
   warning?: string;
-}
-
-/** create_node_from_svg */
-export interface SvgCreateResult {
-  id: string;
-  type: string;
 }
 
 /** set_fill_color, set_stroke_color, set_effects */
@@ -154,11 +148,6 @@ export interface GetCurrentPageResult {
   children: NodeStub[];
 }
 
-export interface GetPagesResult {
-  currentPageId: string;
-  pages: Array<{ id: string; name: string }>;
-}
-
 export interface SetCurrentPageResult {
   id: string;
   name: string;
@@ -169,12 +158,6 @@ export interface GetNodeInfoResult {
   results: Array<Record<string, unknown>>;
   _truncated?: boolean;
   _notice?: string;
-}
-
-export interface GetNodeCssResult {
-  id: string;
-  name: string;
-  css: Record<string, string>;
 }
 
 export interface SearchNodesResult {
@@ -196,22 +179,13 @@ export interface SearchNodesResult {
 }
 
 export interface ExportNodeAsImageResult {
-  nodeId: string;
-  format: "PNG" | "JPG" | "SVG" | "PDF";
-  scale: number;
   mimeType: string;
   imageData: string;
 }
 
 export interface GetSelectionResult {
   selectionCount: number;
-  selection: Array<NodeStub & { visible: boolean }>;
-}
-
-export interface ReadMyDesignResult {
-  selectionCount: number;
-  nodes?: Array<{ nodeId: string; document: Record<string, unknown> }>;
-  warning?: string;
+  selection: Array<NodeStub | Record<string, unknown>>;
   _truncated?: boolean;
   _notice?: string;
 }
@@ -220,19 +194,6 @@ export interface SetSelectionResult {
   count: number;
   selectedNodes: Array<{ name: string; id: string }>;
   notFoundIds?: string[];
-}
-
-export interface ZoomIntoViewResult {
-  viewportCenter: Vector2;
-  viewportZoom: number;
-  nodeCount: number;
-  notFound?: string[];
-}
-
-export interface SetViewportResult {
-  center: Vector2;
-  zoom: number;
-  bounds: BoundingBox;
 }
 
 // Variables
@@ -586,15 +547,6 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
     required: ["id", "name", "children"],
     example: { id: "0:1", name: "Components", children: [{ id: "1:2", name: "Button", type: "COMPONENT_SET" }] },
   },
-  get_pages: {
-    type: "object",
-    properties: {
-      currentPageId: stringProp,
-      pages: { type: "array", items: { type: "object", properties: { id: stringProp, name: stringProp } } },
-    },
-    required: ["currentPageId", "pages"],
-    example: { currentPageId: "0:1", pages: [{ id: "0:1", name: "Components" }, { id: "5:0", name: "Icons" }] },
-  },
   set_current_page: {
     type: "object",
     properties: { id: stringProp, name: stringProp },
@@ -620,16 +572,6 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
     },
     required: ["results"],
     example: { results: [{ id: "1:2", name: "Button", type: "COMPONENT", width: 120, height: 40 }] },
-  },
-  get_node_css: {
-    type: "object",
-    properties: {
-      id: stringProp,
-      name: stringProp,
-      css: { type: "object", description: "CSS property → value map", additionalProperties: stringProp },
-    },
-    required: ["id", "name", "css"],
-    example: { id: "1:2", name: "Button", css: { "background-color": "#3b82f6", "border-radius": "8px", padding: "8px 16px" } },
   },
   search_nodes: {
     type: "object",
@@ -657,13 +599,10 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
     type: "object",
     description: "Returned as MCP image content (not JSON)",
     properties: {
-      nodeId: stringProp,
-      format: { type: "string", enum: ["PNG", "JPG", "SVG", "PDF"] },
-      scale: numberProp,
       mimeType: stringProp,
       imageData: { ...stringProp, description: "Base64-encoded image data" },
     },
-    required: ["nodeId", "format", "scale", "mimeType", "imageData"],
+    required: ["mimeType", "imageData"],
     example: { nodeId: "1:2", format: "PNG", scale: 2, mimeType: "image/png", imageData: "iVBORw0KGgo..." },
   },
   get_selection: {
@@ -674,34 +613,15 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
         type: "array",
         items: {
           type: "object",
-          properties: { id: stringProp, name: stringProp, type: stringProp, visible: boolProp },
+          description: "Stubs (no depth) or full serialized nodes (with depth)",
+          properties: { id: stringProp, name: stringProp, type: stringProp },
         },
       },
-    },
-    required: ["selectionCount", "selection"],
-    example: { selectionCount: 1, selection: [{ id: "1:2", name: "Button", type: "COMPONENT", visible: true }] },
-  },
-  read_my_design: {
-    type: "object",
-    description: "Deep serialization of selected nodes",
-    properties: {
-      selectionCount: numberProp,
-      nodes: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            nodeId: stringProp,
-            document: { type: "object", description: "Full serialized node tree" },
-          },
-        },
-      },
-      warning: stringProp,
       _truncated: boolProp,
       _notice: stringProp,
     },
-    required: ["selectionCount"],
-    example: { selectionCount: 1, nodes: [{ nodeId: "1:2", document: { id: "1:2", name: "Button", type: "COMPONENT", children: [] } }] },
+    required: ["selectionCount", "selection"],
+    example: { selectionCount: 1, selection: [{ id: "1:2", name: "Button", type: "COMPONENT" }] },
   },
   set_selection: {
     type: "object",
@@ -713,49 +633,12 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
     required: ["count", "selectedNodes"],
     example: { count: 2, selectedNodes: [{ name: "Button", id: "1:2" }, { name: "Card", id: "3:4" }] },
   },
-  zoom_into_view: {
-    type: "object",
-    properties: {
-      viewportCenter: vector2Schema,
-      viewportZoom: numberProp,
-      nodeCount: { ...numberProp, description: "Number of nodes zoomed to" },
-      notFound: { type: "array", items: stringProp },
-    },
-    required: ["viewportCenter", "viewportZoom", "nodeCount"],
-    example: { viewportCenter: { x: 400, y: 300 }, viewportZoom: 0.5, nodeCount: 2 },
-  },
-  set_viewport: {
-    type: "object",
-    properties: {
-      center: vector2Schema,
-      zoom: numberProp,
-      bounds: boundsSchema,
-    },
-    required: ["center", "zoom", "bounds"],
-    example: { center: { x: 0, y: 0 }, zoom: 1, bounds: { x: -640, y: -360, width: 1280, height: 720 } },
-  },
-
   // ── Creation (all batch) ──
-  create_rectangle: batchSchema({ id: idProp }, {
-    example: { results: [{ id: "10:1" }] },
-  }),
-  create_ellipse: batchSchema({ id: idProp }, {
-    example: { results: [{ id: "10:2" }] },
-  }),
-  create_line: batchSchema({ id: idProp }, {
-    example: { results: [{ id: "10:3" }] },
-  }),
   create_section: batchSchema({ id: idProp }, {
     example: { results: [{ id: "10:4" }] },
   }),
-  create_node_from_svg: batchSchema({
-    id: idProp,
-    type: { ...stringProp, description: "Figma node type of created SVG (e.g. GROUP, FRAME, VECTOR)" },
-  }, {
-    example: { results: [{ id: "10:5", type: "FRAME" }] },
-  }),
-  create_boolean_operation: batchSchema({ id: idProp }, {
-    example: { results: [{ id: "10:6" }] },
+  create_node_from_svg: okBatchSchema({
+    example: { results: ["ok"] },
   }),
   create_frame: batchSchema({
     id: idProp,
@@ -774,38 +657,19 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
   }),
 
   // ── Modification (all batch) ──
-  move_node: okBatchSchema({ example: { results: ["ok", "ok"] } }),
-  resize_node: okBatchSchema({ example: { results: ["ok"] } }),
+  patch_nodes: mixedBatchSchema({
+    matchedFillStyle: { ...stringProp, description: "Matched fill paint style name" },
+    matchedStrokeStyle: { ...stringProp, description: "Matched stroke paint style name" },
+    matchedEffectStyle: { ...stringProp, description: "Matched effect style name" },
+  }, {
+    description: "Per-item is 'ok' (no style matches) or object with matched style names.",
+    example: { results: ["ok", { matchedFillStyle: "Primary/Blue" }], warnings: ["Hardcoded color #ff0000 has no matching paint style or color variable."] },
+  }),
   delete_node: okBatchSchema({ example: { results: ["ok", "ok"] } }),
   clone_node: batchSchema({ id: { ...stringProp, description: "Cloned node ID" } }, {
     example: { results: [{ id: "11:1" }] },
   }),
   insert_child: okBatchSchema({ example: { results: ["ok"] } }),
-
-  // ── Appearance (all batch) ──
-  set_fill_color: mixedBatchSchema({
-    matchedStyle: { ...stringProp, description: "Matched paint style name" },
-  }, {
-    example: { results: ["ok"], warnings: ["Hardcoded color #ff0000 has no matching paint style or color variable."] },
-  }),
-  set_stroke_color: mixedBatchSchema({
-    matchedStyle: { ...stringProp, description: "Matched paint style name" },
-  }, {
-    example: { results: ["ok"], warnings: ["Hardcoded color #333333 has no matching paint style or color variable."] },
-  }),
-  set_corner_radius: okBatchSchema({ example: { results: ["ok"] } }),
-  set_opacity: okBatchSchema({ example: { results: ["ok"] } }),
-  set_effects: mixedBatchSchema({
-    matchedStyle: { ...stringProp, description: "Matched effect style name" },
-  }, {
-    example: { results: ["ok"] },
-  }),
-  set_constraints: okBatchSchema({ example: { results: ["ok"] } }),
-  set_export_settings: okBatchSchema({ example: { results: ["ok"] } }),
-  set_node_properties: okBatchSchema({ example: { results: ["ok"] } }),
-
-  // ── Layout (batch) ──
-  update_frame: okBatchSchema({ example: { results: ["ok"] } }),
 
   // ── Styles ──
   get_styles: {
@@ -1050,9 +914,6 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
 
   // ── Text & Fonts ──
   set_text_content: okBatchSchema({ example: { results: ["ok", "ok"] } }),
-  set_text_properties: okBatchSchema({
-    example: { results: ["ok"], warnings: ["Hint: textStyleName 'Body' matches — use it for design token consistency."] },
-  }),
   scan_text_nodes: batchSchema({
     nodeId: stringProp,
     count: { ...numberProp, description: "Total text nodes found" },

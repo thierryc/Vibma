@@ -54,7 +54,7 @@ export const colorRgba = z.preprocess((v) => {
   g: z.coerce.number().min(0).max(1),
   b: z.coerce.number().min(0).max(1),
   a: z.coerce.number().min(0).max(1).optional(),
-}));
+})).describe('Hex "#FF0000" or {r,g,b,a?} with values 0-1.');
 
 /** Single effect entry — shared by set_effects and create_effect_style */
 export const effectEntry = z.object({

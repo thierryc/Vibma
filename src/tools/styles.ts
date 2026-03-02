@@ -11,7 +11,7 @@ import type { IdResult, IdWithWarningResult, ApplyStyleItemResult, GetStylesResu
 
 const paintStyleItem = z.object({
   name: z.string().describe("Style name"),
-  color: flexJson(S.colorRgba).describe('Color. Hex "#FF0000" or {r,g,b,a?} 0-1.'),
+  color: flexJson(S.colorRgba).describe('Color.'),
 });
 
 const textStyleItem = z.object({
@@ -39,7 +39,7 @@ const effectStyleItem = z.object({
 const updatePaintStyleItem = z.object({
   id: z.string().describe("Style ID or name (case-insensitive match)"),
   name: z.string().optional().describe("New name"),
-  color: flexJson(S.colorRgba).optional().describe('New color. Hex "#FF0000" or {r,g,b,a?} 0-1.'),
+  color: flexJson(S.colorRgba).optional().describe('New color.'),
 });
 
 const updateTextStyleItem = z.object({

@@ -17,7 +17,7 @@ const textPropsItem = z.object({
   nodeId: z.string().describe("Text node ID"),
   fontSize: z.coerce.number().optional().describe("Font size"),
   fontWeight: z.coerce.number().optional().describe("Font weight: 100-900"),
-  fontColor: flexJson(S.colorRgba).optional().describe('Font color. Hex "#000" or {r,g,b,a?} 0-1.'),
+  fontColor: flexJson(S.colorRgba).optional().describe('Font color.'),
   textStyleId: z.string().optional().describe("Text style ID to apply (overrides font props)"),
   textStyleName: z.string().optional().describe("Text style name (case-insensitive match)"),
   textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional().describe("Horizontal text alignment"),
@@ -47,15 +47,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     }
   );
 
-  server.tool(
-    "set_text_properties",
-    "Set font properties on existing text nodes (fontSize, fontWeight, fontColor, textStyle). Batch: pass multiple items.",
-    { items: flexJson(z.array(textPropsItem)).describe("Array of {nodeId, fontSize?, fontWeight?, fontColor?, ...}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_text_properties", params)); }
-      catch (e) { return mcpError("Error setting text properties", e); }
-    }
-  );
+  // set_text_properties merged into patch_nodes
 
   server.tool(
     "scan_text_nodes",
@@ -119,7 +111,7 @@ async function setTextContentBatch(params: any) {
 
 // ─── set_text_properties ─────────────────────────────────────────
 
-interface TextPropsContext {
+export interface TextPropsContext {
   nodeMap: Map<string, TextNode>;
   textStyles: any[] | null;
 }
@@ -127,7 +119,7 @@ interface TextPropsContext {
 /**
  * Pre-resolve nodes, preload current + target fonts, resolve text styles.
  */
-async function prepSetTextProperties(params: any): Promise<TextPropsContext> {
+export async function prepSetTextProperties(params: any): Promise<TextPropsContext> {
   const items = params.items || [params];
 
   const nodeMap = new Map<string, TextNode>();
@@ -162,7 +154,7 @@ async function prepSetTextProperties(params: any): Promise<TextPropsContext> {
   return { nodeMap, textStyles };
 }
 
-async function setTextPropertiesSingle(p: any, ctx: TextPropsContext): Promise<TextPropertyResult> {
+export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext): Promise<TextPropertyResult> {
   const node = ctx.nodeMap.get(p.nodeId);
   if (!node) {
     const raw = await figma.getNodeByIdAsync(p.nodeId);
@@ -235,7 +227,7 @@ async function setTextPropertiesBatch(params: any) {
   return batchHandler(params, (item) => setTextPropertiesSingle(item, ctx));
 }
 
-function getFontStyle(weight: number): string {
+export function getFontStyle(weight: number): string {
   const map: Record<number, string> = {
     100: "Thin", 200: "Extra Light", 300: "Light", 400: "Regular",
     500: "Medium", 600: "Semi Bold", 700: "Bold", 800: "Extra Bold", 900: "Black",

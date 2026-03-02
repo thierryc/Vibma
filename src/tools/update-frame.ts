@@ -25,23 +25,15 @@ const updateFrameItem = z.object({
 
 // ─── MCP Registration ────────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "update_frame",
-    "Update layout properties on frames. Combines layout mode, padding, alignment, sizing, and spacing in one call. Batch: pass multiple items.",
-    { items: flexJson(z.array(updateFrameItem)).describe("Array of {nodeId, ...layout properties}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("update_frame", params)); }
-      catch (e) { return mcpError("Error updating frame", e); }
-    }
-  );
+export function registerMcpTools(_server: McpServer, _sendCommand: SendCommandFn) {
+  // Merged into patch_nodes
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 const LAYOUT_TYPES = ["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"];
 
-async function updateFrameSingle(p: any) {
+export async function updateFrameSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
 

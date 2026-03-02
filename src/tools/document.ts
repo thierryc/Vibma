@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import type { GetDocumentInfoResult, GetCurrentPageResult, GetPagesResult, SetCurrentPageResult, IdResult } from "./response-types";
+import type { GetDocumentInfoResult, GetCurrentPageResult, SetCurrentPageResult, IdResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -18,21 +18,11 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
   server.tool(
     "get_current_page",
-    "Get the current page info and its top-level children. Always safe — never touches unloaded pages.",
+    "Get the current page info and its top-level children.",
     {},
     async () => {
       try { return mcpJson(await sendCommand("get_current_page")); }
       catch (e) { return mcpError("Error getting current page", e); }
-    }
-  );
-
-  server.tool(
-    "get_pages",
-    "Get all pages in the document with their IDs, names, and child counts.",
-    {},
-    async () => {
-      try { return mcpJson(await sendCommand("get_pages")); }
-      catch (e) { return mcpError("Error getting pages", e); }
     }
   );
 
@@ -95,15 +85,6 @@ async function getCurrentPage(): Promise<GetCurrentPageResult> {
   };
 }
 
-async function getPages(): Promise<GetPagesResult> {
-  return {
-    currentPageId: figma.currentPage.id,
-    pages: figma.root.children.map((p: any) => (
-      { id: p.id, name: p.name }
-    )),
-  };
-}
-
 async function setCurrentPage(params: any): Promise<SetCurrentPageResult> {
   let page: any;
   if (params.pageId) {
@@ -145,7 +126,6 @@ async function renamePage(params: any) {
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   get_document_info: getDocumentInfo,
   get_current_page: getCurrentPage,
-  get_pages: getPages,
   set_current_page: setCurrentPage,
   create_page: createPage,
   rename_page: renamePage,

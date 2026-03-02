@@ -6,6 +6,7 @@ import { figmaHandlers as createShapeHandlers } from "./create-shape";
 import { figmaHandlers as createFrameHandlers } from "./create-frame";
 import { figmaHandlers as createTextHandlers } from "./create-text";
 import { figmaHandlers as modifyNodeHandlers } from "./modify-node";
+import { figmaHandlers as patchNodesHandlers } from "./patch-nodes";
 import { figmaHandlers as fillStrokeHandlers } from "./fill-stroke";
 import { figmaHandlers as updateFrameHandlers } from "./update-frame";
 import { figmaHandlers as effectsHandlers } from "./effects";
@@ -26,6 +27,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...createFrameHandlers,
   ...createTextHandlers,
   ...modifyNodeHandlers,
+  ...patchNodesHandlers,
   ...fillStrokeHandlers,
   ...updateFrameHandlers,
   ...effectsHandlers,

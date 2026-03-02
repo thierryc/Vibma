@@ -3,7 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import type { GetNodeInfoResult, GetNodeCssResult, SearchNodesResult, ExportNodeAsImageResult } from "./response-types";
+import type { GetNodeInfoResult, SearchNodesResult, ExportNodeAsImageResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     {
       nodeIds: flexJson(z.array(z.string())).describe('Array of node IDs. Example: ["1:2","1:3"]'),
       depth: z.coerce.number().optional().describe("Child recursion depth (default: unlimited). 0=stubs only."),
-      fields: flexJson(z.array(z.string())).optional().describe('Whitelist of property names to include. Always includes id, name, type. Example: ["absoluteBoundingBox","layoutMode","fills"]. Omit to return all properties.'),
+      fields: flexJson(z.array(z.string())).optional().describe('Whitelist of property names to include. Example: ["absoluteBoundingBox","layoutMode","fills"]. Omit to return all properties.'),
     },
     async (params: any) => {
       try {
@@ -25,18 +25,8 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
   );
 
   server.tool(
-    "get_node_css",
-    "Get CSS properties for a node (useful for dev handoff)",
-    { nodeId: z.string().describe("The node ID to get CSS for") },
-    async ({ nodeId }: any) => {
-      try { return mcpJson(await sendCommand("get_node_css", { nodeId })); }
-      catch (e) { return mcpError("Error getting CSS", e); }
-    }
-  );
-
-  server.tool(
     "search_nodes",
-    "Search for nodes by layer name and/or type. Searches current page only — use set_current_page to switch pages first. Matches layer names (text nodes are often auto-named from their content). Returns paginated results.",
+    "Search nodes on the current page by name and/or type. Use set_current_page first to search other pages. Paginated (default 50).",
     {
       query: z.string().optional().describe("Name search (case-insensitive substring). Omit to match all names."),
       types: flexJson(z.array(z.string())).optional().describe('Filter by types. Example: ["FRAME","TEXT"]. Omit to match all types.'),
@@ -96,7 +86,7 @@ async function getNodeInfo(params: any): Promise<GetNodeInfoResult> {
 
   // Build fields whitelist (always include identity keys)
   const keep = fields?.length
-    ? new Set<string>([...fields, "id", "name", "type", "children", "parentId", "parentName", "parentType"])
+    ? new Set<string>([...fields, "id", "name", "type", "children"])
     : null;
 
   // Shared budget across all requested nodes — sequential to keep counter deterministic
@@ -123,15 +113,6 @@ async function getNodeInfo(params: any): Promise<GetNodeInfoResult> {
   }
 
   return out;
-}
-
-async function getNodeCss(params: any): Promise<GetNodeCssResult> {
-  if (!params?.nodeId) throw new Error("Missing nodeId");
-  const node = await figma.getNodeByIdAsync(params.nodeId);
-  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
-  if (!("getCSSAsync" in node)) throw new Error("Node does not support CSS export");
-  const css = await (node as any).getCSSAsync();
-  return { id: node.id, name: node.name, css };
 }
 
 async function searchNodes(params: any): Promise<SearchNodesResult> {
@@ -205,7 +186,6 @@ async function exportNodeAsImage(params: any): Promise<ExportNodeAsImageResult> 
   };
 
   return {
-    nodeId, format, scale,
     mimeType: mimeMap[format] || "application/octet-stream",
     imageData: customBase64Encode(bytes),
   };
@@ -215,7 +195,6 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   get_node_info: getNodeInfo,
   // Legacy single-node alias
   get_nodes_info: async (params: any) => getNodeInfo({ nodeIds: params.nodeIds, depth: params.depth }),
-  get_node_css: getNodeCss,
   search_nodes: searchNodes,
   export_node_as_image: exportNodeAsImage,
 };

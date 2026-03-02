@@ -10,13 +10,13 @@ import type { StyleMatchResult } from "./response-types";
 
 const fillItem = z.object({
   nodeId: S.nodeId,
-  color: flexJson(S.colorRgba).optional().describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  color: flexJson(S.colorRgba).optional().describe('Fill color. Ignored when styleName is set.'),
   styleName: z.string().optional().describe("Apply fill paint style by name instead of color. Omit to use color."),
 });
 
 const strokeItem = z.object({
   nodeId: S.nodeId,
-  color: flexJson(S.colorRgba).optional().describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  color: flexJson(S.colorRgba).optional().describe('Stroke color. Ignored when styleName is set.'),
   strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
   styleName: z.string().optional().describe("Apply stroke paint style by name instead of color. Omit to use color."),
 });
@@ -35,46 +35,8 @@ const opacityItem = z.object({
 
 // ─── MCP Registration ────────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "set_fill_color",
-    "Set fill color on nodes. Prefer styleName (design token) over hardcoded color — hardcoded values trigger lint warnings. Batch: pass multiple items.",
-    { items: flexJson(z.array(fillItem)).describe("Array of {nodeId, color?, styleName?}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_fill_color", params)); }
-      catch (e) { return mcpError("Error setting fill", e); }
-    }
-  );
-
-  server.tool(
-    "set_stroke_color",
-    "Set stroke color on nodes. Prefer styleName (design token) over hardcoded color — hardcoded values trigger lint warnings. Batch: pass multiple items.",
-    { items: flexJson(z.array(strokeItem)).describe("Array of {nodeId, color?, strokeWeight?, styleName?}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_stroke_color", params)); }
-      catch (e) { return mcpError("Error setting stroke", e); }
-    }
-  );
-
-  server.tool(
-    "set_corner_radius",
-    "Set corner radius on nodes. Batch: pass multiple items.",
-    { items: flexJson(z.array(cornerItem)).describe("Array of {nodeId, radius, corners?}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_corner_radius", params)); }
-      catch (e) { return mcpError("Error setting corner radius", e); }
-    }
-  );
-
-  server.tool(
-    "set_opacity",
-    "Set opacity on nodes. Batch: pass multiple items.",
-    { items: flexJson(z.array(opacityItem)).describe("Array of {nodeId, opacity}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_opacity", params)); }
-      catch (e) { return mcpError("Error setting opacity", e); }
-    }
-  );
+export function registerMcpTools(_server: McpServer, _sendCommand: SendCommandFn) {
+  // Merged into patch_nodes
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -89,7 +51,7 @@ async function resolveStyle(name: string): Promise<{ match: { id: string; name: 
   return { match: null, available };
 }
 
-async function setFillSingle(p: any): Promise<StyleMatchResult> {
+export async function setFillSingle(p: any): Promise<StyleMatchResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("fills" in node)) throw new Error(`Node does not support fills: ${p.nodeId}`);
@@ -112,7 +74,7 @@ async function setFillSingle(p: any): Promise<StyleMatchResult> {
   return {};
 }
 
-async function setStrokeSingle(p: any): Promise<StyleMatchResult> {
+export async function setStrokeSingle(p: any): Promise<StyleMatchResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);
@@ -140,7 +102,7 @@ async function setStrokeSingle(p: any): Promise<StyleMatchResult> {
   return result;
 }
 
-async function setCornerSingle(p: any) {
+export async function setCornerSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("cornerRadius" in node)) throw new Error(`Node does not support corner radius: ${p.nodeId}`);
@@ -157,7 +119,7 @@ async function setCornerSingle(p: any) {
   return {};
 }
 
-async function setOpacitySingle(p: any) {
+export async function setOpacitySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("opacity" in node)) throw new Error(`Node does not support opacity`);
