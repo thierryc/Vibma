@@ -8,6 +8,7 @@ import { allFigmaHandlers } from "../handlers/registry";
 const state = {
   serverPort: 3055,
   channelName: "",
+  locale: "",
 };
 
 // ─── UI Setup ────────────────────────────────────────────────────
@@ -19,8 +20,9 @@ figma.clientStorage.getAsync("settings").then((saved: any) => {
   if (saved) {
     if (saved.serverPort) state.serverPort = saved.serverPort;
     if (saved.channelName) state.channelName = saved.channelName;
-    figma.ui.postMessage({ type: "restore-settings", serverPort: state.serverPort, channelName: state.channelName });
+    if (saved.locale) state.locale = saved.locale;
   }
+  figma.ui.postMessage({ type: "restore-settings", serverPort: state.serverPort, channelName: state.channelName, locale: state.locale || "en" });
 });
 
 // ─── Auto-Focus ─────────────────────────────────────────────────
@@ -131,9 +133,13 @@ function updateSettings(settings: any) {
   if (settings.channelName !== undefined) {
     state.channelName = settings.channelName;
   }
+  if (settings.locale) {
+    state.locale = settings.locale;
+  }
   figma.clientStorage.setAsync("settings", {
     serverPort: state.serverPort,
     channelName: state.channelName,
+    locale: state.locale,
   });
 }
 

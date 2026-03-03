@@ -259,58 +259,54 @@
       <div class="header">
         <div class="header-text">
           <h1>Vibma <span id="version-badge" style="font-weight:400;font-size:12px;color:#999"></span></h1>
-          <p>Vibe Design meets Figma — AI-powered MCP bridge</p>
+          <p id="header-tagline"></p>
         </div>
       </div>
 
       <div class="tabs">
-        <div id="tab-connection" class="tab active">Connection</div>
-        <div id="tab-about" class="tab">About</div>
+        <div id="tab-connection" class="tab active" data-i18n="tabConnection"></div>
+        <div id="tab-settings" class="tab" data-i18n="tabSettings"></div>
+        <div id="tab-about" class="tab" data-i18n="tabAbout"></div>
       </div>
 
       <div id="content-connection" class="tab-content active">
         <div class="section">
           <div style="margin-bottom: 16px">
-            <button id="btn-connect" class="primary" style="width: 100%">
-              Connect
-            </button>
+            <button id="btn-connect" class="primary" style="width: 100%"></button>
           </div>
 
           <div id="port-container">
-            <label for="port">WebSocket Server Port</label>
+            <label for="port" id="label-port"></label>
             <select id="port">
               <option value="3055" selected>3055</option>
               <option value="3056">3056</option>
               <option value="3057">3057</option>
               <option value="3058">3058</option>
             </select>
-            <label for="channel-name">Channel Name</label>
+            <label for="channel-name" id="label-channel"></label>
             <input
               type="text"
               id="channel-name"
               placeholder="vibma"
               value="vibma"
               maxlength="32"
+              pattern="[a-zA-Z0-9_\-]+"
             />
           </div>
         </div>
 
-        <div id="connection-status" class="status disconnected">
-          Not connected to Vibma relay
-        </div>
+        <div id="connection-status" class="status disconnected"></div>
 
-        <div style="margin-top: 12px; padding: 10px; background-color: #2a2a2a; border-left: 3px solid #f0ad4e; border-radius: 4px; font-size: 12px; color: #ccc; line-height: 1.5;">
-          <strong style="color: #f0ad4e;">Note:</strong> Vibma grants the connected AI agent full read &amp; write access to this Figma file. It can create, modify, and delete layers in your design. Use with care and on files you're comfortable editing.
-        </div>
+        <div id="warning-box" style="margin-top: 12px; padding: 10px; background-color: #2a2a2a; border-left: 3px solid #f0ad4e; border-radius: 4px; font-size: 12px; color: #ccc; line-height: 1.5;"></div>
 
         <div style="margin-top: 12px; font-size: 12px; color: #999;">
-          Having issues? <a id="btn-reset" class="link">Reset tunnel</a>
+          <span id="having-issues"></span> <a id="btn-reset" class="link"></a>
         </div>
 
         <!-- Progress Bar Section -->
         <div id="progress-container" class="section hidden">
-          <h2>Operation Progress</h2>
-          <div id="progress-message">No operation in progress</div>
+          <h2 id="progress-heading"></h2>
+          <div id="progress-message"></div>
           <div
             style="
               width: 100%;
@@ -338,16 +334,26 @@
               font-size: 12px;
             "
           >
-            <div id="progress-status">Not started</div>
+            <div id="progress-status"></div>
             <div id="progress-percentage">0%</div>
           </div>
         </div>
       </div>
 
+      <div id="content-settings" class="tab-content">
+        <div class="section">
+          <label for="locale-select" id="label-language"></label>
+          <select id="locale-select">
+            <option value="en">English</option>
+            <option value="zh-CN">简体中文</option>
+          </select>
+        </div>
+      </div>
+
       <div id="content-about" class="tab-content">
         <div class="section">
-          <h2>About Vibma</h2>
-          <p>Vibe Design meets Figma — AI-powered MCP bridge.</p>
+          <h2 id="about-title"></h2>
+          <p id="about-description"></p>
           <p>
             <a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">GitHub</a>
             &nbsp;·&nbsp;
@@ -361,6 +367,134 @@
       // Keep in sync with package.json version
       const VIBMA_VERSION = "0.3.0";
 
+      // ─── i18n ─────────────────────────────────────────────────────
+      const i18n = {
+        en: {
+          tagline: "Vibe Design meets Figma — AI-powered MCP bridge",
+          tabConnection: "Connection",
+          tabSettings: "Settings",
+          tabAbout: "About",
+          btnConnect: "Connect",
+          btnDisconnect: "Disconnect",
+          labelPort: "WebSocket Server Port",
+          labelChannel: "Channel Name",
+          labelLanguage: "Language",
+          statusDisconnected: "Not connected to Vibma relay",
+          statusConnected: "Connected to Vibma relay",
+          statusConnecting: "Connecting...",
+          statusDisconnecting: "Disconnecting...",
+          statusResetting: "Resetting tunnel...",
+          statusAlreadyConnected: "Already connected to server",
+          statusDisconnectedFromServer: "Disconnected from server",
+          statusRelayNotReachable: "Relay not reachable on port {port}. Start the relay first, then connect.",
+          statusConnectionError: "Connection error: {message}",
+          connectedToChannel: "Connected to channel: <strong>{channel}</strong>",
+          sessionLabel: "Session: <strong>{name}</strong>{version}",
+          waitingMcp: "Waiting for MCP connection\u2026",
+          connectionRejected: "Connection rejected",
+          setupGuide: "Setup guide",
+          warningNote: "Note:",
+          warningBody: "Vibma grants the connected AI agent full read & write access to this Figma file. It can create, modify, and delete layers in your design. Use with care and on files you're comfortable editing.",
+          havingIssues: "Having issues?",
+          resetTunnel: "Reset tunnel",
+          progressTitle: "Operation Progress",
+          noOperation: "No operation in progress",
+          notStarted: "Not started",
+          started: "Started",
+          inProgress: "In Progress",
+          completed: "Completed",
+          errorStatus: "Error",
+          aboutTitle: "About Vibma",
+          aboutDescription: "Vibe Design meets Figma — AI-powered MCP bridge.",
+        },
+        "zh-CN": {
+          tagline: "Vibe Design 遇见 Figma — AI 驱动的 MCP 桥接工具",
+          tabConnection: "连接",
+          tabSettings: "设置",
+          tabAbout: "关于",
+          btnConnect: "连接",
+          btnDisconnect: "断开",
+          labelPort: "WebSocket 服务器端口",
+          labelChannel: "频道名称",
+          labelLanguage: "语言",
+          statusDisconnected: "未连接到 Vibma 中继服务器",
+          statusConnected: "已连接到 Vibma 中继服务器",
+          statusConnecting: "正在连接...",
+          statusDisconnecting: "正在断开...",
+          statusResetting: "正在重置隧道...",
+          statusAlreadyConnected: "已连接到服务器",
+          statusDisconnectedFromServer: "已断开连接",
+          statusRelayNotReachable: "无法连接到端口 {port} 的中继服务器。请先启动中继服务器，然后再连接。",
+          statusConnectionError: "连接错误：{message}",
+          connectedToChannel: "已连接到频道：<strong>{channel}</strong>",
+          sessionLabel: "会话：<strong>{name}</strong>{version}",
+          waitingMcp: "等待 MCP 连接\u2026",
+          connectionRejected: "连接被拒绝",
+          setupGuide: "设置指南",
+          warningNote: "注意：",
+          warningBody: "Vibma 将授予已连接的 AI 代理对此 Figma 文件的完整读写权限。它可以创建、修改和删除设计中的图层。请谨慎使用，并仅在您可以放心编辑的文件上操作。",
+          havingIssues: "遇到问题？",
+          resetTunnel: "重置隧道",
+          progressTitle: "操作进度",
+          noOperation: "当前无操作",
+          notStarted: "未开始",
+          started: "已开始",
+          inProgress: "进行中",
+          completed: "已完成",
+          errorStatus: "错误",
+          aboutTitle: "关于 Vibma",
+          aboutDescription: "Vibe Design 遇见 Figma — AI 驱动的 MCP 桥接工具。",
+        },
+      };
+
+      let currentLocale = "en";
+
+      function t(key, vars) {
+        const str = (i18n[currentLocale] && i18n[currentLocale][key]) || i18n.en[key] || key;
+        if (!vars) return str;
+        return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] !== undefined ? vars[k] : `{${k}}`);
+      }
+
+      function applyLocale() {
+        // Header
+        document.getElementById("header-tagline").textContent = t("tagline");
+
+        // Tabs
+        document.querySelectorAll("[data-i18n]").forEach(el => {
+          el.textContent = t(el.dataset.i18n);
+        });
+
+        // Connection tab
+        connectButton.textContent = state.connected ? t("btnDisconnect") : t("btnConnect");
+        document.getElementById("label-port").textContent = t("labelPort");
+        document.getElementById("label-channel").textContent = t("labelChannel");
+        document.getElementById("warning-box").innerHTML =
+          `<strong style="color: #f0ad4e;">${t("warningNote")}</strong> ${t("warningBody")}`;
+        document.getElementById("having-issues").textContent = t("havingIssues");
+        document.getElementById("btn-reset").textContent = t("resetTunnel");
+
+        // Progress
+        document.getElementById("progress-heading").textContent = t("progressTitle");
+        document.getElementById("progress-message").textContent = t("noOperation");
+        document.getElementById("progress-status").textContent = t("notStarted");
+
+        // Settings tab
+        document.getElementById("label-language").textContent = t("labelLanguage");
+
+        // About tab
+        document.getElementById("about-title").textContent = t("aboutTitle");
+        document.getElementById("about-description").textContent = t("aboutDescription");
+
+        // Refresh connection status
+        if (!state.connected) {
+          updateConnectionStatus(false);
+        } else {
+          updateConnectionStatus(true, buildStatusMessage());
+        }
+      }
+
+      // ─── State ──────────────────────────────────────────────────────
+
       // WebSocket connection state
       const state = {
         connected: false,
@@ -369,8 +503,8 @@
         pendingRequests: new Map(),
         channel: null,
         lastError: null,
-        mcpPeer: null, // { name, version } of connected MCP session
-        versionWarning: null, // version mismatch message
+        mcpPeer: null,
+        versionWarning: null,
       };
 
       // Set version badge
@@ -381,10 +515,7 @@
       const channelInput = document.getElementById("channel-name");
       const connectButton = document.getElementById("btn-connect");
       const connectionStatus = document.getElementById("connection-status");
-
-      // Tabs
-      const tabs = document.querySelectorAll(".tab");
-      const tabContents = document.querySelectorAll(".tab-content");
+      const localeSelect = document.getElementById("locale-select");
 
       // Add UI elements for progress tracking
       const progressContainer = document.getElementById("progress-container");
@@ -393,18 +524,29 @@
       const progressStatus = document.getElementById("progress-status");
       const progressPercentage = document.getElementById("progress-percentage");
 
+      // ─── Locale switching ─────────────────────────────────────────
+
+      localeSelect.addEventListener("change", () => {
+        currentLocale = localeSelect.value;
+        applyLocale();
+        // Persist locale
+        parent.postMessage({
+          pluginMessage: { type: "update-settings", locale: currentLocale },
+        }, "*");
+      });
+
       // Build the connection status message
       function buildStatusMessage() {
-        let msg = `Connected to channel: <strong>${state.channel || "—"}</strong>`;
+        let msg = t("connectedToChannel", { channel: state.channel || "\u2014" });
         if (state.mcpPeer) {
           const name = state.mcpPeer.name || "unknown";
           const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
-          msg += `<br>Session: <strong>${name}</strong>${ver}`;
+          msg += `<br>${t("sessionLabel", { name, version: ver })}`;
         } else {
-          msg += `<br><span style="color:#999">Waiting for MCP connection…</span>`;
+          msg += `<br><span style="color:#999">${t("waitingMcp")}</span>`;
         }
         if (state.versionWarning) {
-          msg += `<br><span style="color:#f0ad4e">⚠ ${state.versionWarning}</span>`;
+          msg += `<br><span style="color:#f0ad4e">\u26a0 ${state.versionWarning}</span>`;
         }
         return msg;
       }
@@ -416,12 +558,12 @@
         let statusMessage =
           message ||
           (isConnected
-            ? "Connected to Vibma relay"
-            : "Not connected to Vibma relay");
+            ? t("statusConnected")
+            : t("statusDisconnected"));
 
         // Add instructions for localhost when disconnected
         if (!isConnected) {
-          statusMessage += `<br><br><a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">Setup guide</a>`;
+          statusMessage += `<br><br><a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">${t("setupGuide")}</a>`;
         }
 
         connectionStatus.innerHTML = statusMessage;
@@ -430,18 +572,17 @@
         }`;
 
         // Update connect button text and style based on connection state
-        connectButton.textContent = isConnected ? "Disconnect" : "Connect";
+        connectButton.textContent = isConnected ? t("btnDisconnect") : t("btnConnect");
         connectButton.className = isConnected ? "secondary" : "primary";
         portInput.disabled = isConnected;
         channelInput.disabled = isConnected;
-
       }
 
       // Connect to WebSocket server
       async function connectToServer(port) {
         try {
           if (state.connected && state.socket) {
-            updateConnectionStatus(true, "Already connected to server");
+            updateConnectionStatus(true, t("statusAlreadyConnected"));
             return;
           }
 
@@ -452,7 +593,7 @@
 
           state.socket.onopen = () => {
             // Use custom channel name or generate random
-            const custom = channelInput.value.trim();
+            const custom = channelInput.value.trim().replace(/[^a-zA-Z0-9_\-]/g, "");
             const channelName = custom || generateChannelName();
             console.log("Joining channel:", channelName);
             state.channel = channelName;
@@ -477,7 +618,7 @@
                 // Peer joined/left notifications
                 if (data.code === "PEER_JOINED" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = { name: data.peer.name, version: data.peer.version };
-                  state.versionWarning = null; // clear on new peer
+                  state.versionWarning = null;
                   updateConnectionStatus(true, buildStatusMessage());
                 } else if (data.code === "PEER_LEFT" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = null;
@@ -522,7 +663,7 @@
                 }
               } else if (data.type === "error") {
                 console.error("Relay error:", data.message);
-                const prefix = data.code === "ROLE_OCCUPIED" ? "Connection rejected" : "Error";
+                const prefix = data.code === "ROLE_OCCUPIED" ? t("connectionRejected") : "Error";
                 state.lastError = data.message;
                 updateConnectionStatus(false, `${prefix}: ${data.message}`);
                 if (state.socket) { state.socket.close(); state.socket = null; }
@@ -541,14 +682,14 @@
             state.versionWarning = null;
             // Don't overwrite rejection/error messages
             if (!state.lastError) {
-              updateConnectionStatus(false, "Disconnected from server");
+              updateConnectionStatus(false, t("statusDisconnectedFromServer"));
             }
             state.lastError = null;
           };
 
           state.socket.onerror = (error) => {
             console.error("WebSocket error:", error);
-            state.lastError = `Relay not reachable on port ${port}. Start the relay first, then connect.`;
+            state.lastError = t("statusRelayNotReachable", { port });
             updateConnectionStatus(false, state.lastError);
             state.connected = false;
             state.socket = null;
@@ -557,7 +698,7 @@
           console.error("Connection error:", error);
           updateConnectionStatus(
             false,
-            `Connection error: ${error.message || "Unknown error"}`
+            t("statusConnectionError", { message: error.message || "Unknown error" })
           );
         }
       }
@@ -568,7 +709,7 @@
           state.socket.close();
           state.socket = null;
           state.connected = false;
-          updateConnectionStatus(false, "Disconnected from server");
+          updateConnectionStatus(false, t("statusDisconnectedFromServer"));
         }
       }
 
@@ -710,6 +851,9 @@
       }
 
       // Tab switching
+      const tabs = document.querySelectorAll(".tab");
+      const tabContents = document.querySelectorAll(".tab-content");
+
       tabs.forEach((tab) => {
         tab.addEventListener("click", () => {
           tabs.forEach((t) => t.classList.remove("active"));
@@ -740,7 +884,7 @@
         state.lastError = null;
         state.pendingRequests.clear();
 
-        updateConnectionStatus(false, "Resetting tunnel...");
+        updateConnectionStatus(false, t("statusResetting"));
         connectionStatus.className = "status info";
 
         // Factory reset the channel on the relay via HTTP
@@ -757,12 +901,12 @@
       // Replace the separate connect/disconnect button listeners with a single toggle
       connectButton.addEventListener("click", () => {
         if (state.connected) {
-          updateConnectionStatus(false, "Disconnecting...");
+          updateConnectionStatus(false, t("statusDisconnecting"));
           connectionStatus.className = "status info";
           disconnectFromServer();
         } else {
           const port = parseInt(portInput.value, 10) || 3055;
-          updateConnectionStatus(false, "Connecting...");
+          updateConnectionStatus(false, t("statusConnecting"));
           connectionStatus.className = "status info";
           connectToServer(port);
         }
@@ -780,17 +924,17 @@
 
         // Update message
         progressMessage.textContent =
-          progressData.message || "Operation in progress";
+          progressData.message || t("inProgress");
 
         // Update status text based on operation state
         if (progressData.status === "started") {
-          progressStatus.textContent = "Started";
+          progressStatus.textContent = t("started");
           progressStatus.className = "";
         } else if (progressData.status === "in_progress") {
-          progressStatus.textContent = "In Progress";
+          progressStatus.textContent = t("inProgress");
           progressStatus.className = "";
         } else if (progressData.status === "completed") {
-          progressStatus.textContent = "Completed";
+          progressStatus.textContent = t("completed");
           progressStatus.className = "operation-complete";
 
           // Hide progress container after 5 seconds
@@ -798,7 +942,7 @@
             progressContainer.classList.add("hidden");
           }, 5000);
         } else if (progressData.status === "error") {
-          progressStatus.textContent = "Error";
+          progressStatus.textContent = t("errorStatus");
           progressStatus.className = "operation-error";
         }
       }
@@ -830,8 +974,8 @@
       function resetProgressUI() {
         progressContainer.classList.add("hidden");
         progressBar.style.width = "0%";
-        progressMessage.textContent = "No operation in progress";
-        progressStatus.textContent = "Not started";
+        progressMessage.textContent = t("noOperation");
+        progressStatus.textContent = t("notStarted");
         progressStatus.className = "";
         progressPercentage.textContent = "0%";
       }
@@ -847,6 +991,11 @@
           case "restore-settings":
             if (message.serverPort) portInput.value = message.serverPort;
             if (message.channelName) channelInput.value = message.channelName;
+            if (message.locale && i18n[message.locale]) {
+              currentLocale = message.locale;
+              localeSelect.value = currentLocale;
+            }
+            applyLocale();
             break;
           case "connection-status":
             updateConnectionStatus(message.connected, message.message);
@@ -873,6 +1022,9 @@
             break;
         }
       };
+
+      // Apply default locale on load
+      applyLocale();
 
     </script>
   </body>

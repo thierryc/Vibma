@@ -1,62 +1,62 @@
-> **[简体中文](./CARRYME.zh-CN.md)**
+> **[English](./CARRYME.md)**
 
-# Vibma — NPM Setup
+# Vibma — NPM 安装方式
 
-> **No cloning, no building.** Install the tunnel and MCP server from npm, grab the plugin from GitHub, and connect.
+> **无需克隆，无需构建。** 从 npm 安装 tunnel 和 MCP server，从 GitHub 获取插件，即可连接。
 >
-> Prefer full source control? See the [clone-and-build guide](./DRAGME.md).
+> 想要完全掌控源码？请参阅[克隆构建指南](./DRAGME.md)。
 
-## Prerequisites
+## 前提条件
 
 - [Node.js](https://nodejs.org) (v18+)
-- [Figma](https://figma.com) desktop or web app
-- An AI coding tool with MCP support (Claude Code, Cursor, Windsurf, etc.)
+- [Figma](https://figma.com) 桌面版或网页版
+- 支持 MCP 的 AI 编程工具（Claude Code、Cursor、Windsurf 等）
 
-### Recommended models
+### 推荐模型
 
-Use the latest models for best results with Vibma:
+使用最新模型以获得最佳效果：
 
-| Model | Provider |
-|-------|----------|
-| **Claude Opus 4.6** | Anthropic (Claude Code, Cursor, etc.) |
-| **GPT-5.3-Codex** | OpenAI (ChatGPT Codex) |
-| **Gemini 3.1 Pro** | Google (Gemini CLI, Cursor, etc.) |
+| 模型 | 提供商 |
+|------|--------|
+| **Claude Opus 4.6** | Anthropic（Claude Code、Cursor 等） |
+| **GPT-5.3-Codex** | OpenAI（ChatGPT Codex） |
+| **Gemini 3.1 Pro** | Google（Gemini CLI、Cursor 等） |
 
-Older or smaller models may struggle with complex multi-tool workflows.
+较旧或较小的模型可能难以处理复杂的多工具工作流。
 
-## 1. Download the Figma plugin
+## 1. 下载 Figma 插件
 
-Grab the latest **vibma-plugin** from [GitHub Releases](https://github.com/ufira-ai/vibma/releases) — it contains `manifest.json`, `code.js`, and `ui.html`.
+从 [GitHub Releases](https://github.com/ufira-ai/vibma/releases) 下载最新的 **vibma-plugin** 压缩包——包含 `manifest.json`、`code.js` 和 `ui.html`。
 
-Unzip it.
+解压即可。
 
-## 2. Start the WebSocket tunnel
+## 2. 启动 WebSocket tunnel
 
 ```bash
 npx @ufira/vibma-tunnel
 ```
 
-You should see: `WebSocket server running on port 3055`
+你应该会看到：`WebSocket server running on port 3055`
 
-### About ports
+### 关于端口
 
-Vibma defaults to port **3055**. The Figma plugin whitelists ports **3055–3058** so you have alternatives if 3055 is already in use. To use a different port:
+Vibma 默认使用端口 **3055**。Figma 插件白名单中包含端口 **3055–3058**，如果 3055 已被占用，可以使用其他端口。使用其他端口的方法：
 
 ```bash
 VIBMA_PORT=3056 npx @ufira/vibma-tunnel
 ```
 
-Update the **port field in the Figma plugin UI** before clicking Connect to match.
+在 Figma 插件界面中点击 Connect 前，请先更新**端口字段**使其匹配。
 
-## 3. Install the Figma plugin
+## 3. 安装 Figma 插件
 
-1. In Figma, go to **Plugins > Development > Import plugin from manifest...**
-2. Select the `manifest.json` from the unzipped plugin folder
-3. Run the plugin — it will show a connection panel
+1. 在 Figma 中，前往 **Plugins > Development > Import plugin from manifest...**
+2. 选择解压后插件文件夹中的 `manifest.json`
+3. 运行插件——将显示连接面板
 
-## 4. Configure MCP in your AI tool
+## 4. 在 AI 工具中配置 MCP
 
-Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`):
+添加到你的 MCP 配置文件（例如 `.cursor/mcp.json`、`.claude.json` 或 `.mcp.json`）：
 
 ```json
 {
@@ -69,21 +69,21 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
 }
 ```
 
-### Access tiers
+### 访问层级
 
-Vibma uses access tiers to control which tools are available. Pass a flag to set the tier:
+Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 
-| Flag | Tools available | Use case |
-|------|----------------|----------|
-| _(none)_ | Read-only (inspect, search, export) | Safe browsing, audits |
-| `--create` | Read + create (frames, text, shapes) | Generating new designs |
-| `--edit` | All tools (read + create + edit + delete) | Full design workflow |
+| 标志 | 可用工具 | 使用场景 |
+|------|---------|---------|
+| _(无)_ | 只读（检查、搜索、导出） | 安全浏览、审查 |
+| `--create` | 只读 + 创建（frame、文本、形状） | 生成新设计 |
+| `--edit` | 所有工具（只读 + 创建 + 编辑 + 删除） | 完整设计工作流 |
 
-Most users want `--edit` for full access. Omit the flag for read-only mode.
+大多数用户需要 `--edit` 以获得完整权限。省略标志则为只读模式。
 
-### Non-default port
+### 非默认端口
 
-If using a non-default port, add `--port=`:
+如果使用非默认端口，添加 `--port=`：
 
 ```json
 {
@@ -96,18 +96,18 @@ If using a non-default port, add `--port=`:
 }
 ```
 
-## 5. Connect
+## 5. 连接
 
-1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
-2. Click **Connect**
-3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
-4. Call `ping` — you should get back `pong` with your document name
+1. 在 Figma 插件中，将频道名设置为 `vibma`（或任意你喜欢的名称）
+2. 点击 **Connect**
+3. 在 AI 工具中调用 `join_channel`，使用相同的频道名（默认为 `vibma`）
+4. 调用 `ping` ——你应该会收到包含文档名称的 `pong` 响应
 
-## Updating
+## 更新
 
-`npx` caches packages, so you may not get the latest version automatically. To update:
+`npx` 会缓存已安装的包，因此你可能不会自动获取最新版本。更新方法：
 
-**MCP server & tunnel** — use the `@latest` tag:
+**MCP server 和 tunnel** — 使用 `@latest` 标签：
 
 ```bash
 npx @ufira/vibma-tunnel@latest
@@ -124,21 +124,21 @@ npx @ufira/vibma-tunnel@latest
 }
 ```
 
-Or clear the npx cache to force a fresh download next time:
+或清除 npx 缓存以强制下次重新下载：
 
 ```bash
 npx clear-npx-cache
 ```
 
-**Figma plugin** — download the latest `vibma-plugin.zip` from [GitHub Releases](https://github.com/ufira-ai/vibma/releases), unzip, and re-import the `manifest.json` in Figma.
+**Figma 插件** — 从 [GitHub Releases](https://github.com/ufira-ai/vibma/releases) 下载最新的 `vibma-plugin.zip`，解压后在 Figma 中重新导入 `manifest.json`。
 
-## Troubleshooting
+## 故障排除
 
-**Plugin won't connect to WebSocket**: Make sure the tunnel is running. The plugin connects to `ws://localhost:3055` by default.
+**插件无法连接 WebSocket**：确保 tunnel 正在运行。插件默认连接到 `ws://localhost:3055`。
 
-**MCP shows disconnected**: Restart your AI tool after changing MCP config. Stdio-based MCP servers can't hot-reload.
+**MCP 显示断开连接**：更改 MCP 配置后重启你的 AI 工具。基于 stdio 的 MCP server 无法热重载。
 
-**Port already in use**: Kill the existing process (`lsof -ti:3055 | xargs kill`) or use the next available port (3056–3058).
+**端口已被占用**：终止现有进程（`lsof -ti:3055 | xargs kill`）或使用下一个可用端口（3056–3058）。
 
 ---
 

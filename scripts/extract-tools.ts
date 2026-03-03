@@ -255,7 +255,84 @@ for (const domain of domains) {
   writeFileSync(mdxPath, lines.join("\n"));
 }
 
-// 8. Generate getting-started.mdx from CARRYME.md
+// 8. Generate zh-cn domain MDX pages
+const zhToolsDir = join(ROOT, "docs", "src", "content", "docs", "zh-cn", "tools");
+mkdirSync(zhToolsDir, { recursive: true });
+
+for (const domain of domains) {
+  const domainTools = capturedTools.filter((t) => t.domain === domain.id);
+  const zhLines: string[] = [
+    "---",
+    `title: "${domain.label}"`,
+    `description: "${domain.descriptionZhCN}"`,
+    "---",
+    "",
+    `import ToolReference from "../../../../components/ToolReference.astro";`,
+    "",
+    `${domain.descriptionZhCN}`,
+    "",
+    `此分类共 ${domainTools.length} 个工具。`,
+    "",
+  ];
+
+  for (const tool of domainTools) {
+    zhLines.push(`### ${tool.name}`);
+    zhLines.push("");
+    const responseAttr = tool.responseSchema
+      ? ` responseSchema={${JSON.stringify(tool.responseSchema)}}`
+      : "";
+    const exampleAttr = tool.responseExample !== undefined
+      ? ` responseExample={${JSON.stringify(tool.responseExample)}}`
+      : "";
+    const endpointAttr = tool.endpoint ? ` endpoint` : "";
+    zhLines.push(
+      `<ToolReference name="${tool.name}" description={${JSON.stringify(tool.description)}} schema={${JSON.stringify(tool.schema)}} tier="${tool.tier}"${endpointAttr}${responseAttr}${exampleAttr} />`
+    );
+    zhLines.push("");
+  }
+
+  const zhMdxPath = join(zhToolsDir, `${domain.id}.mdx`);
+  writeFileSync(zhMdxPath, zhLines.join("\n"));
+}
+
+// 8b. Generate zh-cn getting-started.mdx from CARRYME.zh-CN.md (if it exists)
+const carryMeZhPath = join(ROOT, "CARRYME.zh-CN.md");
+try {
+  const carryMeZh = readFileSync(carryMeZhPath, "utf-8");
+  const agentSectionIdxZh = carryMeZh.indexOf("\n---\n\n## Instructions for AI Agents");
+  const userContentZh = agentSectionIdxZh !== -1 ? carryMeZh.slice(0, agentSectionIdxZh) : carryMeZh;
+  const linesZh = userContentZh.split("\n");
+  let startIdxZh = 0;
+  if (linesZh[0]?.startsWith("# ")) startIdxZh = 1;
+  if (linesZh[startIdxZh]?.trim() === "") startIdxZh++;
+  while (startIdxZh < linesZh.length && linesZh[startIdxZh]?.startsWith(">")) startIdxZh++;
+  if (linesZh[startIdxZh]?.trim() === "") startIdxZh++;
+  const bodyZh = linesZh.slice(startIdxZh).join("\n").trim();
+
+  const zhGettingStartedMdx = [
+    "---",
+    "title: 快速开始",
+    "description: 设置 Vibma 并将 AI 代理连接到 Figma",
+    "slug: index",
+    "---",
+    "",
+    `{/* Auto-generated from CARRYME.zh-CN.md by extract-tools.ts — do not edit manually */}`,
+    "",
+    bodyZh,
+    "",
+  ].join("\n");
+
+  const zhGettingStartedDir = join(ROOT, "docs", "src", "content", "docs", "zh-cn");
+  mkdirSync(zhGettingStartedDir, { recursive: true });
+  writeFileSync(join(zhGettingStartedDir, "getting-started.mdx"), zhGettingStartedMdx);
+  console.log(`✓ Generated zh-cn/getting-started.mdx from CARRYME.zh-CN.md`);
+} catch {
+  console.log(`ℹ CARRYME.zh-CN.md not found — skipping zh-cn getting-started page`);
+}
+
+console.log(`✓ Generated ${domains.length} zh-cn domain MDX pages in ${zhToolsDir}`);
+
+// 9. Generate getting-started.mdx from CARRYME.md
 const carryMePath = join(ROOT, "CARRYME.md");
 const carryMe = readFileSync(carryMePath, "utf-8");
 // Strip the H1 title line and the "> Prefer full source control?" blockquote

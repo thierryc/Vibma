@@ -6,11 +6,29 @@ slug: index
 
 {/* Auto-generated from CARRYME.md by extract-tools.ts — do not edit manually */}
 
+# Vibma — NPM Setup
+
+> **No cloning, no building.** Install the tunnel and MCP server from npm, grab the plugin from GitHub, and connect.
+>
+> Prefer full source control? See the [clone-and-build guide](./DRAGME.md).
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) (v18+)
 - [Figma](https://figma.com) desktop or web app
-- An AI coding tool with MCP support (Claude Code, Cursor, etc.)
+- An AI coding tool with MCP support (Claude Code, Cursor, Windsurf, etc.)
+
+### Recommended models
+
+Use the latest models for best results with Vibma:
+
+| Model | Provider |
+|-------|----------|
+| **Claude Opus 4.6** | Anthropic (Claude Code, Cursor, etc.) |
+| **GPT-5.3-Codex** | OpenAI (ChatGPT Codex) |
+| **Gemini 3.1 Pro** | Google (Gemini CLI, Cursor, etc.) |
+
+Older or smaller models may struggle with complex multi-tool workflows.
 
 ## 1. Download the Figma plugin
 
@@ -90,6 +108,35 @@ If using a non-default port, add `--port=`:
 2. Click **Connect**
 3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
 4. Call `ping` — you should get back `pong` with your document name
+
+## Updating
+
+`npx` caches packages, so you may not get the latest version automatically. To update:
+
+**MCP server & tunnel** — use the `@latest` tag:
+
+```bash
+npx @ufira/vibma-tunnel@latest
+```
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma@latest", "--edit"]
+    }
+  }
+}
+```
+
+Or clear the npx cache to force a fresh download next time:
+
+```bash
+npx clear-npx-cache
+```
+
+**Figma plugin** — download the latest `vibma-plugin.zip` from [GitHub Releases](https://github.com/ufira-ai/vibma/releases), unzip, and re-import the `manifest.json` in Figma.
 
 ## Troubleshooting
 

@@ -22,6 +22,11 @@ try {
     try {
       const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
       if (pkg.name === "@ufira/vibma") { VIBMA_VERSION = pkg.version; break; }
+      // Workspace root — dist/ is at root level, read core package version
+      if (pkg.workspaces) {
+        try { VIBMA_VERSION = JSON.parse(readFileSync(join(dir, "packages/core/package.json"), "utf8")).version; } catch {}
+        break;
+      }
     } catch { continue; }
   }
 } catch { /* fallback */ }

@@ -20,6 +20,10 @@ interface Row {
 }
 
 const { schema, hideRequired = false, fieldLabel = "Parameter" } = Astro.props;
+
+const locale = Astro.currentLocale ?? "en";
+const noParamsText = locale === "zh-CN" ? "无参数" : "No parameters";
+
 const rows: Row[] = [];
 
 function formatType(prop: Record<string, any>): string {
@@ -121,5 +125,5 @@ extractRows(schema.properties, schema.required ?? [], 0);
     </table>
   </div>
 ) : (
-  <p class="no-params">No parameters</p>
+  <p class="no-params">{noParamsText}</p>
 )}
