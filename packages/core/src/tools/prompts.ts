@@ -234,4 +234,44 @@ Transfer content overrides from a source instance to target instances.
       description: "Strategy for transferring overrides between component instances in Figma",
     })
   );
+
+  server.registerPrompt(
+    "missing_tools",
+    { description: "Why create or edit tools are missing and how to fix it" },
+    () => ({
+      messages: [{
+        role: "assistant" as const,
+        content: {
+          type: "text" as const,
+          text: `# Missing Create / Edit Tools
+
+If the user asks you to create or modify something in Figma but you cannot find tools like \`create_frame\`, \`create_text\`, \`patch_nodes\`, \`delete_node\`, or \`set_text_content\`, the MCP server was started without the correct access tier flag.
+
+Vibma filters tools at startup based on CLI flags passed in the MCP config \`args\` array:
+
+| Flag | Tools available |
+|------|----------------|
+| _(none)_ | Read-only (inspect, search, export) |
+| \`--create\` | Read + creation tools |
+| \`--edit\` | All tools (read + create + edit + delete) |
+
+Ask the user to add \`--edit\` (or \`--create\`) to their MCP config args:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma", "--edit"]
+    }
+  }
+}
+\`\`\`
+
+After updating, the user must restart their AI tool or reload MCP servers — stdio-based servers cannot hot-reload.`,
+        },
+      }],
+      description: "Why create or edit tools are missing and how to fix it",
+    })
+  );
 }

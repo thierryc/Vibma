@@ -208,3 +208,30 @@ If `join_channel` returns a version mismatch warning, the Figma plugin and MCP s
 - **Figma plugin**: Download the latest `vibma-plugin.zip` from [GitHub Releases](https://github.com/ufira-ai/vibma/releases), unzip, and re-import the `manifest.json` in Figma.
 
 The tunnel relay rarely needs updating — it is a simple message router and stays backward compatible.
+
+### Missing create or edit tools
+
+If the user asks you to create or modify something in Figma but you cannot find the relevant tools (e.g. `create_frame`, `create_text`, `patch_nodes`, `delete_node`, `set_text_content`), it means the MCP server was started without the correct access tier flag.
+
+Vibma uses `--create` and `--edit` flags in the MCP args to control which tools are available:
+
+| Flag | What it unlocks |
+|------|----------------|
+| _(none)_ | Read-only tools only |
+| `--create` | Read + creation tools |
+| `--edit` | All tools (read + create + edit + delete) |
+
+Tell the user to update their MCP configuration (e.g. `.cursor/mcp.json`, `claude_desktop_config.json`, or `.claude.json`) and add the appropriate flag to the `args` array:
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma", "--edit"]
+    }
+  }
+}
+```
+
+After updating the config, the user must restart their AI tool (or reload MCP servers) for the change to take effect — stdio-based MCP servers cannot hot-reload.
