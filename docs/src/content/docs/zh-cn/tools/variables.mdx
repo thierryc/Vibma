@@ -13,6 +13,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 ```ts
 // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
 // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
+// IMPORTANT: collectionName is the collection's display name (e.g. "Colors"), NOT an ID. Use the name you gave the collection when creating it.
 // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
 // ---
 // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
@@ -53,7 +54,7 @@ Get variable detail by name
 
 Create variables
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionName":{"description":"Variable collection name","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID for initial value (default: collection's default mode)","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"]","type":"array","items":{"type":"string"}}},"required":["collectionName","name","resolvedType"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionName":{"description":"Collection display name (e.g. \"Colors\"), NOT an ID","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID for initial value (default: collection's default mode)","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"]","type":"array","items":{"type":"string"}}},"required":["collectionName","name","resolvedType"]}}},"required":["items"]}} />
 
 **Response**
 
