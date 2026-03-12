@@ -13,7 +13,8 @@ async function findCollectionById(id: string): Promise<any> {
 }
 
 /** Resolve a variable collection by name. */
-async function findCollectionByName(name: string): Promise<any> {
+async function findCollectionByName(name: string | undefined): Promise<any> {
+  if (!name) return null;
   const all = await figma.variables.getLocalVariableCollectionsAsync();
   return all.find(c => c.name === name) ||
          all.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
@@ -121,8 +122,10 @@ async function resolveModeId(collection: any, modeIdOrName: string): Promise<str
 // -- variables handlers --
 
 async function createVariableSingle(p: any) {
-  const collection = await findCollectionByName(p.collectionName);
-  if (!collection) throw new Error(`Collection not found: ${p.collectionName}`);
+  const collection = p.collectionId
+    ? await findCollectionById(p.collectionId)
+    : await findCollectionByName(p.collectionName);
+  if (!collection) throw new Error(`Collection not found: ${p.collectionName || p.collectionId}. Pass collectionName (the collection's display name).`);
   const created = figma.variables.createVariable(p.name, collection, p.resolvedType);
   const id = created.id;
   // Re-fetch to ensure Figma has committed the variable before mutating
