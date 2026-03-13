@@ -9,7 +9,7 @@ async function saveVersionHistory(params: any) {
   const result = await figma.saveVersionHistoryAsync(title, description);
 
   return {
-    id: typeof result === "string" ? result : String(result),
+    id: typeof result === "string" ? result : (result as any)?.id ?? JSON.stringify(result),
   };
 }
 
