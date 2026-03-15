@@ -15,6 +15,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Variables are identified by name (unique within a collection). Use name to get/update/delete.
 // All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.
 // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+// Multi-mode workflow: create sets ONE mode per variable. For Light/Dark: create all variables (default mode), then batch update with modeId for other modes.
 // list returns `items` (not `results`). get/create/update/delete use standard batch responses.
 // ---
 // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
@@ -53,9 +54,9 @@ Get variable detail by name
 
 **create**
 
-Create variables
+Create variables. Each call creates ONE variable per item for ONE mode. For multi-mode: create with default value, then variables.update for other modes.
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name (e.g. \"Colors\")","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID or name (e.g. \"Dark\"). Default: collection's default mode","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.","type":"array","items":{"type":"string"}}},"required":["collectionId","name","resolvedType"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}. Each name must be unique — duplicates in the same batch will fail.","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name (e.g. \"Colors\")","type":"string"},"name":{"description":"Variable name (must be unique within collection)","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value for one mode (default mode unless modeId specified). For other modes, use variables.update.","type":"any"},"modeId":{"description":"Mode ID or name (e.g. \"Dark\"). Default: collection's default mode","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.","type":"array","items":{"type":"string"}}},"required":["collectionId","name","resolvedType"]}}},"required":["items"]}} />
 
 **Response**
 

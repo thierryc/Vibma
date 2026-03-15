@@ -148,7 +148,15 @@ async function resolveModeId(collection: any, modeIdOrName: string): Promise<str
 async function createVariableSingle(p: any) {
   const collection = await findCollection(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}. Pass the collection's ID or display name.`);
-  const created = figma.variables.createVariable(p.name, collection, p.resolvedType);
+  let created;
+  try {
+    created = figma.variables.createVariable(p.name, collection, p.resolvedType);
+  } catch (e: any) {
+    if (e.message?.includes("duplicate") || e.message?.includes("already exists")) {
+      throw new Error(`Variable "${p.name}" already exists in collection "${collection.name}". Use variables(method: "update", items: [{name: "${p.name}", modeId: "<mode>", value: <value>}]) to set values for additional modes.`);
+    }
+    throw e;
+  }
   const id = created.id;
   // Re-fetch to ensure Figma has committed the variable before mutating
   const variable = await figma.variables.getVariableByIdAsync(id);
