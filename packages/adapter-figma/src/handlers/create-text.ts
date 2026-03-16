@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, bindTextToComponentProperty, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -33,8 +33,12 @@ export async function resolveFontAsync(family: string, style: string): Promise<F
   }
 
   // 3. Fuzzy match against available fonts
-  if (!_fontCache) _fontCache = await figma.listAvailableFontsAsync();
-  const familyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+  // listAvailableFontsAsync returns Font[] ({fontName: FontName}), normalize to FontName[]
+  if (!_fontCache) {
+    const raw = await figma.listAvailableFontsAsync();
+    _fontCache = raw.map((f: any) => f.fontName ?? f);
+  }
+  const familyFonts = _fontCache.filter(f => f.family?.toLowerCase() === family.toLowerCase());
   const stripped = stripStyle(style);
   const match = familyFonts.find(f => stripStyle(f.style) === stripped);
   if (match) {
@@ -44,7 +48,7 @@ export async function resolveFontAsync(family: string, style: string): Promise<F
 
   // 4. Case-insensitive family match (agent might say "inter" instead of "Inter")
   if (familyFonts.length === 0) {
-    const looseFamilyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+    const looseFamilyFonts = _fontCache.filter(f => f.family?.toLowerCase() === family.toLowerCase());
     const looseMatch = looseFamilyFonts.find(f => stripStyle(f.style) === stripped);
     if (looseMatch) {
       await figma.loadFontAsync(looseMatch);
@@ -166,7 +170,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
-    componentPropertyName,
+    componentPropertyName, componentId,
   } = p;
 
   const textNode = figma.createText();
@@ -224,10 +228,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     checkOverlappingSiblings(textNode, parent, hints);
 
     // Component property binding: bind text to a component TEXT property
-    const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
+    const comp = await findComponentForBinding(textNode, componentId, hints);
     if (componentPropertyName) {
       if (!comp) {
-        hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — parent is not a component.` });
+        if (!componentId) hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — no ancestor component found.` });
       } else {
         bindTextToComponentProperty(textNode, comp, componentPropertyName, hints);
       }
@@ -268,14 +272,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.textAutoResize = "HEIGHT";
     }
 
-    if (effectiveH) {
-      if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
-      else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
-    }
-    if (effectiveV) {
-      if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
-      else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
-    }
+    applySizing(textNode, parent, {
+      layoutSizingHorizontal: effectiveH,
+      layoutSizingVertical: effectiveV,
+    }, hints);
 
     // HUG on cross-axis of constrained parent — text won't fill available space
     if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
