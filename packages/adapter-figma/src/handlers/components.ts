@@ -1,5 +1,6 @@
 import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
+import { auditNode } from "./lint";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -87,15 +88,6 @@ async function createInlineChildren(
       }
       hints.push(...colorHints);
 
-      if (child.textStyleName) {
-        const styles = await figma.getLocalTextStylesAsync();
-        const match = styles.find(s => s.name === child.textStyleName) ||
-          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
-        if (match) {
-          await (textNode as any).setTextStyleIdAsync(match.id);
-        }
-      }
-
       appendTo.appendChild(textNode);
 
       // Sizing: default FILL + HUG inside auto-layout parent
@@ -103,7 +95,7 @@ async function createInlineChildren(
       const effectiveH = child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
       const effectiveV = child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
 
-      // textAutoResize must be set before FILL sizing to avoid Figma errors
+      // textAutoResize must be set before text style (which changes font) and before FILL sizing
       if (child.textAutoResize) {
         textNode.textAutoResize = child.textAutoResize;
       } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
@@ -114,6 +106,16 @@ async function createInlineChildren(
         layoutSizingHorizontal: effectiveH,
         layoutSizingVertical: effectiveV,
       }, hints);
+
+      // Text style applied after sizing — setTextStyleIdAsync loads its own font
+      if (child.textStyleName) {
+        const styles = await figma.getLocalTextStylesAsync();
+        const match = styles.find(s => s.name === child.textStyleName) ||
+          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
+        if (match) {
+          await (textNode as any).setTextStyleIdAsync(match.id);
+        }
+      }
 
       // Auto-create TEXT property and bind
       if (child.componentPropertyName) {
@@ -139,9 +141,11 @@ async function createInlineChildren(
 
       appendTo.appendChild(frame);
 
+      // Smart defaults: FILL + HUG inside auto-layout parent (same as text children)
+      const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
       applySizing(frame, appendTo, {
-        layoutSizingHorizontal: child.layoutSizingHorizontal,
-        layoutSizingVertical: child.layoutSizingVertical,
+        layoutSizingHorizontal: child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined),
+        layoutSizingVertical: child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined),
       }, hints);
 
       // Recurse for nested children — properties bind to the root component
@@ -159,7 +163,7 @@ async function createInlineChildren(
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
 
-  // When layoutMode is set, default to HUG sizing (same as auto_layout frames)
+  // Components are top-level containers — HUG on both axes by default
   if (p.layoutMode && p.layoutMode !== "NONE") {
     p.layoutSizingHorizontal ??= "HUG";
     p.layoutSizingVertical ??= "HUG";
@@ -207,6 +211,14 @@ async function createComponentSingle(p: any) {
     }
 
     warnUnboundText(comp, hints);
+
+    // Warn if component has text children but no width constraint
+    if (comp.layoutMode !== "NONE" && comp.layoutSizingHorizontal === "HUG" && comp.layoutSizingVertical === "HUG") {
+      const textNodes = findTextNodes(comp, true);
+      if (textNodes.length > 0 && textNodes.some(t => (t.characters?.length ?? 0) > 20)) {
+        hints.push({ type: "warn", message: `"${comp.name}" has text content but no width constraint — text won't wrap. Set a width and layoutSizingHorizontal:"FIXED".` });
+      }
+    }
 
     const result: any = { id: comp.id };
     if (hints.length > 0) result.hints = hints;
@@ -315,6 +327,12 @@ async function combineSingle(p: any) {
   set.layoutMode = "NONE";
   set.fills = [];
   set.cornerRadius = 0;
+
+  // Variant set containers — HUG on both axes by default
+  if (p.layoutMode && p.layoutMode !== "NONE") {
+    p.layoutSizingHorizontal ??= "HUG";
+    p.layoutSizingVertical ??= "HUG";
+  }
 
   const { hints } = await setupFrameNode(set as any, p);
 
@@ -599,10 +617,34 @@ async function auditComponentFigma(params: any) {
   const node = await figma.getNodeByIdAsync(params.id);
   if (!node) throw new Error(`Component not found: ${params.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
-  const comp = node as ComponentNode | ComponentSetNode;
 
-  const result = auditComponentBindings(comp);
-  return { id: comp.id, name: comp.name, ...result };
+  // Run lint (frames.audit base), then replace lint's component-bindings with our own richer check
+  const lintResult = await auditNode({ nodeId: params.id, rules: params.rules, maxDepth: params.maxDepth, maxFindings: params.maxFindings });
+  lintResult.categories = lintResult.categories.filter((c: any) => c.rule !== "component-bindings");
+
+  const bindings = auditComponentBindings(node as ComponentNode | ComponentSetNode);
+  if (bindings.unboundText.length > 0 || bindings.orphanedProperties.length > 0) {
+    const bindingNodes: any[] = [];
+    for (const t of bindings.unboundText) {
+      bindingNodes.push({ id: t.id, name: t.name, issue: "unbound-text", characters: t.characters });
+    }
+    for (const p of bindings.orphanedProperties) {
+      bindingNodes.push({ id: node.id, name: node.name, severity: "unsafe", issue: "orphaned-property", propertyKey: p.key, propertyName: p.name });
+    }
+    for (const n of bindings.unboundNested) {
+      bindingNodes.push({ id: n.id, name: n.name, severity: "style", issue: "unexposed-nested", path: n.path, characters: n.characters });
+    }
+    lintResult.categories.push({
+      rule: "component-bindings",
+      severity: "heuristic",
+      category: "component",
+      count: bindingNodes.length,
+      fix: 'Bind text nodes to properties or delete orphaned ones. guidelines(topic:"component-structure") for details.',
+      nodes: bindingNodes,
+    });
+  }
+
+  return lintResult;
 }
 
 // -- instances handlers --
