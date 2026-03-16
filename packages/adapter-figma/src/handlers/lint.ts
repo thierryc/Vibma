@@ -514,8 +514,8 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
             const result = checkContrastPair(composited, bgColor, large);
 
             // Use variable names when bound, hex when hardcoded
-            const fgVar = await getFillVariableName(node);
-            const bgVar = await getBackgroundVariableName(node);
+            const fgVar = await getFillTokenName(node);
+            const bgVar = await getBackgroundTokenName(node);
             const fgHex = rgbaToHex({ ...fgColor, a: effectiveAlpha });
             const bgHex = rgbaToHex({ r: bgColor.r, g: bgColor.g, b: bgColor.b, a: 1 });
             const foreground = fgVar || fgHex;
@@ -576,8 +576,8 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         if (parentFill !== null) {
           const result = checkContrastPair(nodeFill, parentFill);
           if (result.ratio < 3.0) {
-            const fillVar = await getFillVariableName(node);
-            const bgVar = await getBackgroundVariableName(node);
+            const fillVar = await getFillTokenName(node);
+            const bgVar = await getBackgroundTokenName(node);
             const nodeHex = rgbaToHex({ ...nodeFill, a: 1 });
             const parentHex = rgbaToHex({ r: parentFill.r, g: parentFill.g, b: parentFill.b, a: 1 });
             // Both token-bound: downgrade to style (intentional surface hierarchy)
@@ -763,36 +763,46 @@ function detectLayoutDirection(frame: FrameNode): "VERTICAL" | "HORIZONTAL" {
  * Returns null if fills are mixed, empty, non-solid, or invisible.
  */
 /**
- * Get the bound fill variable name for a node, or null if not bound.
- * Checks boundVariables.fills for the first color binding.
+ * Get the token name for a node's fill — variable name, paint style name, or null.
+ * Checks boundVariables.fills first, then fillStyleId.
  */
-async function getFillVariableName(node: BaseNode): Promise<string | null> {
+async function getFillTokenName(node: BaseNode): Promise<string | null> {
+  // Check variable binding first
   const bv = (node as any).boundVariables;
-  if (!bv?.fills) return null;
-  const fills = Array.isArray(bv.fills) ? bv.fills : [bv.fills];
-  for (const f of fills) {
-    if (f?.id) {
-      try {
-        const v = await figma.variables.getVariableByIdAsync(f.id);
-        if (v) return v.name;
-      } catch {}
+  if (bv?.fills) {
+    const fills = Array.isArray(bv.fills) ? bv.fills : [bv.fills];
+    for (const f of fills) {
+      if (f?.id) {
+        try {
+          const v = await figma.variables.getVariableByIdAsync(f.id);
+          if (v) return v.name;
+        } catch {}
+      }
     }
+  }
+  // Check paint style
+  const styleId = (node as any).fillStyleId;
+  if (styleId && styleId !== "" && styleId !== figma.mixed) {
+    try {
+      const style = await figma.getStyleByIdAsync(styleId);
+      if (style) return style.name;
+    } catch {}
   }
   return null;
 }
 
 /**
- * Walk ancestors to find the nearest fill variable name for background.
- * Returns the variable name if the background comes from a bound fill, or null.
+ * Walk ancestors to find the nearest fill token name for background.
+ * Returns the variable/style name if the background comes from a token, or null.
  */
-async function getBackgroundVariableName(node: BaseNode): Promise<string | null> {
+async function getBackgroundTokenName(node: BaseNode): Promise<string | null> {
   let current = node.parent;
   while (current) {
     if ("fills" in current) {
       const fills = (current as any).fills;
       if (fills !== figma.mixed && Array.isArray(fills) && fills.length > 0) {
         const hasFill = fills.some((f: any) => f.visible !== false && f.type === "SOLID");
-        if (hasFill) return getFillVariableName(current);
+        if (hasFill) return getFillTokenName(current);
       }
     }
     current = current.parent;
