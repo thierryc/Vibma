@@ -21,6 +21,7 @@
   "module": "dist/mcp.js",
   "main": "dist/mcp.js",
   "bin": {
+    "vibma": "dist/mcp.js",
     "vibma-mcp": "dist/mcp.js"
   },
   "exports": {
@@ -63,6 +64,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "README.md",
     "LICENSE"
   ],
