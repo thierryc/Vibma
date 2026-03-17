@@ -43,6 +43,66 @@
   gap: 0.4rem;
 }
 
+.method-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.method-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.4rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--sl-color-gray-5);
+  background: var(--sl-color-bg-sidebar);
+  color: var(--sl-color-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+a.method-badge {
+  text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+a.method-badge:hover {
+  text-decoration: none;
+}
+
+.method-badge-tier-read {
+  border-color: color-mix(in srgb, var(--sl-color-green, #879a39) 45%, transparent);
+  background: color-mix(in srgb, var(--sl-color-green, #879a39) 12%, var(--sl-color-bg) 88%);
+  color: var(--sl-color-green, #879a39);
+}
+
+.method-badge-tier-create {
+  border-color: color-mix(in srgb, var(--sl-color-blue, #4385be) 45%, transparent);
+  background: color-mix(in srgb, var(--sl-color-blue, #4385be) 12%, var(--sl-color-bg) 88%);
+  color: var(--sl-color-blue, #4385be);
+}
+
+.method-badge-tier-edit {
+  border-color: color-mix(in srgb, var(--sl-color-orange, #bc5215) 45%, transparent);
+  background: color-mix(in srgb, var(--sl-color-orange, #bc5215) 12%, var(--sl-color-bg) 88%);
+  color: var(--sl-color-orange, #bc5215);
+}
+
+a.method-badge-tier:hover {
+  filter: brightness(0.96);
+}
+
+.method-badge-inherited {
+  border-style: dashed;
+  color: var(--sl-color-gray-2);
+}
+
 .badge-tier {
   font-size: 0.65rem;
   font-weight: 600;
@@ -203,4 +263,3 @@ a.badge-endpoint:hover {
   max-height: 20rem;
   overflow-y: auto;
 }
-

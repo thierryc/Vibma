@@ -77,11 +77,11 @@ VIBMA_PORT=3056 npx @ufira/vibma-tunnel
 
 Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 
-| 标志 | 可用工具 | 使用场景 |
-|------|---------|---------|
-| _(无)_ | 只读（检查、搜索、导出） | 安全浏览、审查 |
-| `--create` | 只读 + 创建（frame、文本、形状） | 生成新设计 |
-| `--edit` | 所有工具（只读 + 创建 + 编辑 + 删除） | 完整设计工作流 |
+| 标志 | 访问层级 | 可用工具 | 使用场景 |
+|------|---------|---------|---------|
+| _(无)_ | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/zh-cn/#访问层级">read</a> | 检查、搜索、导出 | 安全浏览、审查 |
+| `--create` | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/zh-cn/#访问层级">read</a> <a class="method-badge method-badge-tier method-badge-tier-create" href="/Vibma/zh-cn/#访问层级">create</a> | 只读 + 创建工具，例如 frame、文本和形状 | 生成新设计 |
+| `--edit` | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/zh-cn/#访问层级">read</a> <a class="method-badge method-badge-tier method-badge-tier-create" href="/Vibma/zh-cn/#访问层级">create</a> <a class="method-badge method-badge-tier method-badge-tier-edit" href="/Vibma/zh-cn/#访问层级">edit</a> | 完整工具权限，包括编辑和删除操作 | 完整设计工作流 |
 
 大多数用户需要 `--edit` 以获得完整权限。省略标志则为只读模式。
 

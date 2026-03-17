@@ -3,13 +3,15 @@ title: Endpoints
 description: How Vibma organizes tools as REST-style endpoints
 ---
 
-Vibma exposes **12 endpoint tools** instead of dozens of standalone tools. Each endpoint groups related operations behind a single tool with a `method` parameter — similar to a REST resource.
+Vibma exposes **14 endpoint tools** instead of dozens of standalone tools. Each endpoint groups related operations behind a single tool with a `method` parameter — similar to a REST resource.
+
+In addition to endpoint tools, Vibma also includes standalone `help` and `guidelines` tools. Use `help` to discover the API surface, and `guidelines` for design-system and structural best practices.
 
 ## Why endpoints?
 
 LLMs work better with fewer, well-documented tools than with a long flat list. Instead of `create_frame`, `get_frame`, `list_frames`, `update_frame`, `delete_frame` as five separate tools, a single `frames` endpoint handles all of them. This:
 
-- **Reduces tool count** — 12 endpoints cover 59 methods
+- **Reduces tool count** — 14 endpoints cover 75 methods
 - **Groups related operations** — the AI sees all frame operations together in one description
 - **Shares parameters** — `fields`, `depth`, `offset`, `limit` work the same everywhere
 - **Enables capability gating** — read methods are always available, create/edit methods appear based on `--create` / `--edit` flags
@@ -65,6 +67,17 @@ Some `create` methods use a `type` discriminant to select between different item
 ```
 
 Each type has its own parameter schema documented on the endpoint page.
+
+## Built-in help
+
+Every endpoint also supports `method: "help"` for endpoint-local reference:
+
+```json
+{ "method": "help" }
+{ "method": "help", "topic": "create" }
+```
+
+Use the standalone `help()` tool when you need the global directory of endpoints or method-level help in `endpoint.method` form, such as `help(topic: "frames.create")`.
 
 ## Access tiers
 
