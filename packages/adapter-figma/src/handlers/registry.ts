@@ -21,6 +21,26 @@ import { figmaHandlers as lintHandlers, auditNode } from "./lint";
 import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 import { figmaHandlers as prototypingHandlers } from "./prototyping";
 
+// ─── Shared adapters for inherited node base methods ──────────────
+// Single source of truth for param → handler item mapping.
+const cloneAdapter = (p: any) => modifyNodeHandlers.clone_node({
+  ...p,
+  items: p.items
+    ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+    : [{ nodeId: p.id, name: p.name, parentId: p.parentId, x: p.x, y: p.y }],
+});
+const deleteAdapter = (p: any) => {
+  const items = p.items
+    ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+    : p.id ? [{ nodeId: p.id }] : [];
+  return modifyNodeHandlers.delete_node({ ...p, items });
+};
+const reparentAdapter = (p: any) => modifyNodeHandlers.insert_child({
+  ...p,
+  items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+});
+const auditAdapter = (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings, minSeverity: p.minSeverity, skipInstances: p.skipInstances });
+
 /** Merged dispatch map: command name → handler function */
 export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...connectionHandlers,
@@ -75,22 +95,11 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     ...p,
     items: p.items?.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id })),
   }),
-  "frames.delete": (p: any) => {
-    const items = p.items
-      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
-      : p.id ? [{ nodeId: p.id }] : [];
-    return modifyNodeHandlers.delete_node({ ...p, items });
-  },
-  "frames.clone": (p: any) => modifyNodeHandlers.clone_node({
-    ...p,
-    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
-  }),
-  "frames.reparent": (p: any) => modifyNodeHandlers.insert_child({
-    ...p,
-    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
-  }),
+  "frames.delete": deleteAdapter,
+  "frames.clone": cloneAdapter,
+  "frames.reparent": reparentAdapter,
   "frames.export": nodeInfoHandlers.export_node_as_image,
-  "frames.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
+  "frames.audit": auditAdapter,
 
   // ─── document endpoint ───
   "document.get": documentHandlers.get_current_page,
@@ -111,21 +120,10 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     ...p,
     items: p.items?.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id })),
   }),
-  "text.delete": (p: any) => {
-    const items = p.items
-      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
-      : p.id ? [{ nodeId: p.id }] : [];
-    return modifyNodeHandlers.delete_node({ ...p, items });
-  },
-  "text.clone": (p: any) => modifyNodeHandlers.clone_node({
-    ...p,
-    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
-  }),
-  "text.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
-  "text.reparent": (p: any) => modifyNodeHandlers.insert_child({
-    ...p,
-    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
-  }),
+  "text.delete": deleteAdapter,
+  "text.clone": cloneAdapter,
+  "text.audit": auditAdapter,
+  "text.reparent": reparentAdapter,
 
   // ─── fonts endpoint ───
   "fonts.list": fontsHandlers.get_available_fonts,
@@ -150,14 +148,8 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "components.delete": componentsHandlers.components,
 
   // components endpoint — inherited node base methods
-  "components.clone": (p: any) => modifyNodeHandlers.clone_node({
-    ...p,
-    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
-  }),
-  "components.reparent": (p: any) => modifyNodeHandlers.insert_child({
-    ...p,
-    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
-  }),
+  "components.clone": cloneAdapter,
+  "components.reparent": reparentAdapter,
 
   // ─── instances endpoint — own methods ───
   "instances.get": componentsHandlers.instances,
@@ -165,27 +157,16 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.swap": componentsHandlers.instances,
   "instances.detach": componentsHandlers.instances,
   "instances.reset_overrides": componentsHandlers.instances,
-  "instances.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
+  "instances.audit": auditAdapter,
 
   // instances.update — combined: visual PatchItem params + component properties
   "instances.update": instanceUpdateCombined,
 
   // instances endpoint — inherited node base methods
   "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, types: p.types ?? ["INSTANCE"] }),
-  "instances.delete": (p: any) => {
-    const items = p.items
-      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
-      : p.id ? [{ nodeId: p.id }] : [];
-    return modifyNodeHandlers.delete_node({ ...p, items });
-  },
-  "instances.clone": (p: any) => modifyNodeHandlers.clone_node({
-    ...p,
-    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
-  }),
-  "instances.reparent": (p: any) => modifyNodeHandlers.insert_child({
-    ...p,
-    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
-  }),
+  "instances.delete": deleteAdapter,
+  "instances.clone": cloneAdapter,
+  "instances.reparent": reparentAdapter,
 
   // ─── variable_collections endpoint ───
   "variable_collections.list": variablesHandlers.variable_collections,

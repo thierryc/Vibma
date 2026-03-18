@@ -41,10 +41,23 @@ async function cloneSingle(p: any) {
     node = (main.parent?.type === "COMPONENT_SET") ? main.parent : main;
   }
   const clone = (node as any).clone();
+  if (p.name) clone.name = p.name;
   if (p.x !== undefined && "x" in clone) { clone.x = p.x; clone.y = p.y; }
   if (p.parentId) {
     const parent = await figma.getNodeByIdAsync(p.parentId);
     if (!parent || !("appendChild" in parent)) throw new Error(`Invalid parent: ${p.parentId}`);
+
+    // Pre-validate: cloning a component into a component set with a duplicate name silently
+    // corrupts the set (Figma accepts the append but properties become unreadable).
+    if (parent.type === "COMPONENT_SET" && clone.type === "COMPONENT") {
+      const siblings = (parent as any).children as any[] || [];
+      const duplicate = siblings.find((c: any) => c.type === "COMPONENT" && c.name === clone.name);
+      if (duplicate) {
+        clone.remove();
+        throw new Error(`Variant "${clone.name}" already exists in "${(parent as any).name}". Pass name to rename the clone before appending. Example: components(method:"clone", id:"${node.id}", name:"State=Hover", parentId:"${p.parentId}")`);
+      }
+    }
+
     try {
       (parent as any).appendChild(clone);
     } catch (e: any) {
@@ -55,6 +68,25 @@ async function cloneSingle(p: any) {
         throw new Error(`Cannot nest component "${(node as any).name}" inside component "${(parent as any).name}". Use instances(method: "create", items: [{componentId: "${node.id}", parentId: "${p.parentId}"}]) to create an instance instead.`);
       }
       throw new Error(`Cannot append "${(node as any).name}" to "${(parent as any).name}": ${e.message}`);
+    }
+
+    // Re-bind component property references on cloned variant children.
+    // Figma drops componentPropertyReferences when cloning a COMPONENT into a COMPONENT_SET.
+    // Walk the source and clone trees in parallel, copying bindings.
+    if (parent.type === "COMPONENT_SET" && clone.type === "COMPONENT") {
+      const copyRefs = (src: any, dst: any) => {
+        if (src.componentPropertyReferences) {
+          dst.componentPropertyReferences = { ...src.componentPropertyReferences };
+        }
+        if ("children" in src && "children" in dst) {
+          const srcKids = src.children as any[];
+          const dstKids = dst.children as any[];
+          for (let i = 0; i < Math.min(srcKids.length, dstKids.length); i++) {
+            copyRefs(srcKids[i], dstKids[i]);
+          }
+        }
+      };
+      copyRefs(node, clone);
     }
   } else if (node.parent) {
     (node.parent as any).appendChild(clone);

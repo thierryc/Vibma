@@ -25,6 +25,7 @@ notes: |
   // action: "add" (default) — requires type + defaultValue. "edit" — pass defaultValue to change value, name to rename property. "delete" — just propertyName#suffix.
   // action: "rename_variant" — renames a variant option VALUE (not the property). Pass defaultValue=current option name, name=new option name.
   // For VARIANT properties: "edit" with defaultValue reorders children to set the default variant.
+  // Adding variants: clone an existing variant into the set with a new name. See guidelines(topic:"component-structure") for workflow.
 
 methods:
   list:

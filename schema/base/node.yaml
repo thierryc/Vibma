@@ -185,13 +185,29 @@ methods:
     params:
       id:
         $ref: nodeId
-        required: true
+      name:
+        type: string
+        optional: true
+        description: "Rename the clone (set before appending to parent — required when cloning a variant into its component set to avoid duplicate names)"
       parentId:
         $ref: parentId
       x:
         $ref: xPos
       y:
         $ref: yPos
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, name?, parentId?, x?, y?}, ...]. Alternative to single-item params."
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Node ID to clone" }
+            name: { type: string, optional: true, description: "Rename the clone" }
+            parentId: { type: string, optional: true, description: "Target parent" }
+            x: { type: number, optional: true }
+            y: { type: number, optional: true }
       depth:
         $ref: depth
     response:

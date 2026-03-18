@@ -435,7 +435,7 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   }
 
   // -- Rule: overflow-parent --
-  // Detect children whose fixed dimensions exceed the parent's available inner space.
+  // Detect children whose actual bounding dimensions exceed the parent's available inner space.
   // Skip containers with prototype overflow (scrollable) — overflow is intentional.
   if (ctx.runAll || ctx.ruleSet.has("overflow-parent")) {
     const overflow = (node as any).overflowDirection;
@@ -453,27 +453,40 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const children = (node as any).children as any[];
       const spacing = (node as any).itemSpacing || 0;
 
-      // Per-child: check cross-axis overflow
+      // Per-child: check cross-axis overflow using actual bounding dimensions.
+      // All sizing modes checked — FILL children have computed dimensions too
+      // (e.g. minWidth can push them beyond parent).
       for (const child of children) {
         if (issues.length >= ctx.maxFindings) break;
         if (!("width" in child) || !("height" in child)) continue;
 
-        const crossOverflow = isH
-          ? (child.layoutSizingVertical === "FIXED" && child.height > innerH && innerH > 0)
-          : (child.layoutSizingHorizontal === "FIXED" && child.width > innerW && innerW > 0);
-
-        if (crossOverflow) {
+        const crossDim = isH ? child.height : child.width;
+        const crossInner = isH ? innerH : innerW;
+        if (crossDim > crossInner && crossInner > 0) {
           const axis = isH ? "height" : "width";
-          const childDim = isH ? child.height : child.width;
-          const available = isH ? innerH : innerW;
-          const padDesc = isH ? `padding ${padT}+${padB}` : `padding ${padL}+${padR}`;
+          const childSizing = isH ? child.layoutSizingVertical : child.layoutSizingHorizontal;
           const sizingProp = isH ? "layoutSizingVertical" : "layoutSizingHorizontal";
+          const minProp = isH ? "minHeight" : "minWidth";
+          const childMin = (child as any)[minProp];
+
+          // Context-aware fix based on child sizing mode
+          let fix: string;
+          if (childSizing === "FIXED") {
+            fix = `Reduce ${child.name} ${axis} from ${Math.round(crossDim)} to ≤${Math.round(crossInner)}, or use ${sizingProp}:"FILL" to fit parent.`;
+          } else if (childSizing === "FILL" && childMin && childMin > crossInner) {
+            fix = `${minProp} ${childMin} on ${child.name} exceeds available ${Math.round(crossInner)}. Reduce ${minProp} or increase parent.`;
+          } else if (childSizing === "HUG") {
+            fix = `${child.name} content requires ${Math.round(crossDim)} but only ${Math.round(crossInner)} available. Use ${sizingProp}:"FILL" to constrain to parent.`;
+          } else {
+            fix = `Use ${sizingProp}:"FILL" to fit parent.`;
+          }
+
           issues.push({
             rule: "overflow-parent",
             nodeId: child.id,
             nodeName: child.name,
             extra: {
-              message: `${child.name} ${axis} ${Math.round(childDim)} exceeds available inner ${axis} ${Math.round(available)} in parent ${node.name} (${axis === "width" ? "width" : "height"} ${Math.round(isH ? pH : pW)}, ${padDesc}). Use ${sizingProp}:"FILL".`,
+              message: `${child.name} ${axis} ${Math.round(crossDim)} overflows ${node.name} (inner ${axis} ${Math.round(crossInner)}). ${fix}`,
               parentId: node.id,
               parentName: node.name,
             },
@@ -485,7 +498,6 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       // FILL children are elastic (they compress), but FIXED and HUG children take concrete space.
       if (issues.length < ctx.maxFindings) {
         const primaryInner = isH ? innerW : innerH;
-        const primarySizing = isH ? "layoutSizingHorizontal" : "layoutSizingVertical";
         const concreteChildren = children.filter((c: any) =>
           "width" in c && (isH ? c.layoutSizingHorizontal : c.layoutSizingVertical) !== "FILL"
         );
@@ -495,14 +507,33 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
           const totalUsed = totalConcrete + totalSpacing;
           if (totalUsed > primaryInner) {
             const axis = isH ? "width" : "height";
-            const padDesc = isH ? `padding ${padL}+${padR}` : `padding ${padT}+${padB}`;
+            const scrollDir = isH ? "HORIZONTAL" : "VERTICAL";
+            const parentSizing = isH ? node.layoutSizingHorizontal : node.layoutSizingVertical;
             const childDescs = concreteChildren.map((c: any) => `${c.name} (${Math.round(isH ? c.width : c.height)})`).join(", ");
+
+            // Context-aware fix based on parent sizing mode
+            let fix: string;
+            if (parentSizing === "FILL") {
+              fix = `Parent is FILL-sized (${Math.round(primaryInner)} from its parent). Set overflowDirection:"${scrollDir}" for scrollable content, or increase the ancestor that constrains this container.`;
+            } else if (parentSizing === "FIXED") {
+              fix = `Increase ${node.name} ${axis} beyond ${Math.round(primaryInner)}, or set overflowDirection:"${scrollDir}" for scrollable content.`;
+            } else {
+              // HUG — shouldn't normally overflow, but can with maxWidth/maxHeight
+              const maxProp = isH ? "maxWidth" : "maxHeight";
+              const maxVal = (node as any)[maxProp];
+              if (maxVal) {
+                fix = `${maxProp} ${maxVal} constrains ${node.name} below content size. Increase ${maxProp} or set overflowDirection:"${scrollDir}" for scrollable content.`;
+              } else {
+                fix = `Set overflowDirection:"${scrollDir}" for scrollable content.`;
+              }
+            }
+
             issues.push({
               rule: "overflow-parent",
               nodeId: node.id,
               nodeName: node.name,
               extra: {
-                message: `Combined children ${axis}: ${childDescs} + spacing ${Math.round(totalSpacing)} = ${Math.round(totalUsed)} exceeds available inner ${axis} ${Math.round(primaryInner)} in ${node.name} (${axis} ${Math.round(isH ? pW : pH)}, ${padDesc}). Set ${primarySizing}:"FILL" on some children, or increase parent ${axis}.`,
+                message: `Children overflow ${node.name} on ${axis}: ${childDescs} + spacing ${Math.round(totalSpacing)} = ${Math.round(totalUsed)} vs ${Math.round(primaryInner)} available. ${fix}`,
               },
             });
           }

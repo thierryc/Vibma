@@ -12,8 +12,8 @@
 - [x] Codegen + build
 
 ## Deferred
-- [ ] 4: Text sizing — verify no bug, improve docs
-- [ ] 7: Component depth — document frames.get workaround, optionally add depth param
+- [x] 4: Text sizing — was a dispatch bug (sizing routed to layout handler, rejected TEXT). Fixed in patch-nodes.ts
+- [x] 7: Component depth — added depth/verbose params to components.get
 - [ ] 2: add_variant — new method to append variants to existing set
 - [ ] 6: viewport-fit / scroll-container lint rules
 - [ ] 5: Stress test preview — new tool
