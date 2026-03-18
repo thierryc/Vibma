@@ -341,10 +341,12 @@ export function applySizing(
     }
   }
 
-  // ── HUG resize: shrink axes without explicit dimensions to 1px ──
+  // ── HUG resize: shrink container axes without explicit dimensions to 1px ──
   // HUG means "shrink to content" — 1px is the correct starting size (grows when children are added).
   // Without this, empty HUG frames sit at Figma's default 100×100.
-  if ("resize" in node) {
+  // Only for frame-like containers (have layoutMode). Text/shapes have intrinsic content — HUG
+  // works automatically via Figma without needing a resize.
+  if ("resize" in node && nodeHasLayoutMode) {
     const hugH = (node as any).layoutSizingHorizontal === "HUG" && p.width === undefined;
     const hugV = (node as any).layoutSizingVertical === "HUG" && p.height === undefined;
     if (hugH || hugV) {
