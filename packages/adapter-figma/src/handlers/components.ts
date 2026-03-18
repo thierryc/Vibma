@@ -500,29 +500,54 @@ async function createComponentDispatch(params: any) {
 }
 
 async function getComponentFigma(params: any) {
-  // Support lookup by id (single) or names (batch by name)
+  const depth = params.depth;
+  const verbose = params.verbose === true;
+
+  // Resolve target nodes: by names (batch) or id (single)
   const names: string[] | undefined = params.names;
+  let targets: { node: any; error?: string; name?: string }[] = [];
+
   if (names?.length) {
     await figma.loadAllPagesAsync();
     const all = figma.root.findAllWithCriteria({ types: ["COMPONENT", "COMPONENT_SET"] as any })
       .filter((c: any) => !c.remote)
       .filter((c: any) => !(c.type === "COMPONENT" && c.parent?.type === "COMPONENT_SET"));
-    const results: any[] = [];
     for (const name of names) {
       const nameLower = name.toLowerCase();
       const match = all.find((c: any) => c.name.toLowerCase() === nameLower)
         || all.find((c: any) => c.name.toLowerCase().includes(nameLower));
-      if (!match) { results.push({ name, error: `Not found` }); continue; }
-      results.push(serializeComponentSummary(match));
+      if (!match) { targets.push({ node: null, error: `Not found`, name }); continue; }
+      targets.push({ node: match });
     }
+  } else {
+    const node = await figma.getNodeByIdAsync(params.id);
+    if (!node) throw new Error(`Component not found: ${params.id}`);
+    if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
+    if ((node as any).remote) throw new Error(`Component "${node.name}" is from an external library. To customize: components(method:"clone", id:"<instanceId>") to clone the library component into a local copy, then edit the new local component.`);
+    targets.push({ node });
+  }
+
+  // Without depth: return property summary (backward compatible)
+  if (depth === undefined) {
+    const results = targets.map(t => t.node ? serializeComponentSummary(t.node) : { name: t.name, error: t.error });
     return { results };
   }
 
-  const node = await figma.getNodeByIdAsync(params.id);
-  if (!node) throw new Error(`Component not found: ${params.id}`);
-  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
-  if ((node as any).remote) throw new Error(`Component "${node.name}" is from an external library. To customize: components(method:"clone", id:"<instanceId>") to clone the library component into a local copy, then edit the new local component.`);
-  return { results: [serializeComponentSummary(node)] };
+  // With depth: full node tree (same as frames.get) + component properties merged in
+  const { serializeNode, DEFAULT_NODE_BUDGET } = await import("../utils/serialize-node");
+  const budget = { remaining: DEFAULT_NODE_BUDGET };
+  const results: any[] = [];
+  for (const t of targets) {
+    if (!t.node) { results.push({ name: t.name, error: t.error }); continue; }
+    const serialized = await serializeNode(t.node, depth, 0, budget, verbose);
+    // Merge component property definitions into the serialized tree
+    const summary = serializeComponentSummary(t.node);
+    if (summary.properties) serialized.properties = summary.properties;
+    results.push(serialized);
+  }
+  const out: any = { results };
+  if (budget.remaining <= 0) { out._truncated = true; }
+  return out;
 }
 
 function serializeComponentSummary(node: any): any {

@@ -45,7 +45,7 @@ methods:
 
   get:
     tier: read
-    description: "Get component detail — property definitions + ID for instances.create"
+    description: "Get component detail — property definitions + optional node tree for structural inspection"
     params:
       id:
         type: string
@@ -56,12 +56,18 @@ methods:
         coerce: json
         optional: true
         description: "Batch lookup by name (case-insensitive). Either id or names is required."
+      depth:
+        $ref: depth
+      verbose:
+        type: boolean
+        optional: true
+        description: "Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output."
     response:
       type: object
       properties:
         results:
           type: array
-          description: "Component summaries with id, name, properties, description"
+          description: "Component summaries (without depth) or full node trees with properties merged (with depth)"
           items:
             type: object
             properties:
@@ -69,6 +75,7 @@ methods:
               name: { type: string }
               description: { type: string }
               properties: { type: object, description: "Property definitions — {name: {type, defaultValue, options?}}" }
+        _truncated: { type: boolean }
       required: [results]
       example:
         results:
