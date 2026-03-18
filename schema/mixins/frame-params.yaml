@@ -14,8 +14,8 @@ frame_params:
   parentId: { $ref: parentId }
   x: { $ref: xPos }
   y: { $ref: yPos }
-  width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
-  height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
+  width: { type: number, coerce: true, optional: true, description: "Width in px (omit to shrink-to-content via HUG)" }
+  height: { type: number, coerce: true, optional: true, description: "Height in px (omit to shrink-to-content via HUG)" }
   rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (0-360)" }
   opacity: { type: token, optional: true, description: "Opacity (0-1) or variable name" }
   visible: { type: boolean, coerce: true, optional: true, description: "Show/hide (default true)" }
@@ -35,7 +35,7 @@ frame_params:
   strokesIncludedInLayout: { type: boolean, coerce: true, optional: true, description: "Include stroke width in layout measurements (default: false)" }
   cornerRadius: { $expand: corners, type: token }
   effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }
-  layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
+  layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: auto — NONE when width+height set, otherwise inferred from layout props)" }
   layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
   padding: { $expand: padding, type: token }
   primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }

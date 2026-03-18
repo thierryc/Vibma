@@ -171,11 +171,19 @@ export async function batchHandler<TItem, TResult>(
   // Summarize hints: suppress confirmations, dedup suggest/warn, keep errors as-is
   const warnings: string[] = [];
   const grouped = new Map<string, { count: number; example: string }>();
+  const hardcodedColors = new Set<string>();
+  const HARDCODED_COLOR_RE = /^Hardcoded color (#[0-9a-f]{6,8})/i;
   for (const hint of allHints) {
     if (hint.type === "confirm") continue;
     if (hint.type === "error") {
       warnings.push(hint.message);
     } else {
+      // Collect hardcoded color hints for batched summary
+      const colorMatch = hint.message.match(HARDCODED_COLOR_RE);
+      if (colorMatch) {
+        hardcodedColors.add(colorMatch[1]);
+        continue;
+      }
       // suggest / warn — deduplicate by normalized key
       const key = hintKey(hint);
       const entry = grouped.get(key);
@@ -185,6 +193,10 @@ export async function batchHandler<TItem, TResult>(
   }
   for (const [, { count, example }] of grouped) {
     warnings.push(count > 1 ? `(×${count}) ${example}` : example);
+  }
+  if (hardcodedColors.size > 0) {
+    const colors = [...hardcodedColors].join(", ");
+    warnings.push(`Hardcoded colors without design tokens: [${colors}]. Create variables with variables(method:"create"), then bind with fillVariableName/strokeVariableName.`);
   }
   if (warnings.length > 0) out.warnings = warnings;
 
@@ -230,38 +242,136 @@ export function applySizing(
   autoDefault = true,
 ): void {
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
-  const axes = [
-    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal ?? (p.width !== undefined ? "FIXED" : undefined) },
-    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical ?? (p.height !== undefined ? "FIXED" : undefined) },
-  ];
-  for (const { field, value } of axes) {
-    if (!value || !(field in node)) continue;
-    if (value === "FILL" && !parentIsAL) {
-      hints.push({ type: "warn", message: `${field} 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first.` });
-    } else {
-      (node as any)[field] = value;
+  const nodeHasLayoutMode = "layoutMode" in node;
+  let nodeIsAL = nodeHasLayoutMode && (node as any).layoutMode !== "NONE";
+
+  // Rather than letting the Figma API throw on invalid sizing, we infer intent
+  // from context (parent layout, dimensions, node type) and apply smart defaults.
+  // Every inferred decision is reported back via confirm/warn hints so the agent
+  // can learn from it.
+
+  // ── Resolve each axis: explicit > dimension > parent-aware inference ──
+  const parentDir = parentIsAL ? (parent as any).layoutMode as string : null;
+  const parentSizingH = parentIsAL ? (parent as any).layoutSizingHorizontal as string : null;
+  const parentSizingV = parentIsAL ? (parent as any).layoutSizingVertical as string : null;
+
+  function inferAxis(
+    field: "layoutSizingHorizontal" | "layoutSizingVertical",
+    explicit: string | undefined,
+    dimension: number | undefined,
+  ): { value: string | undefined; inferred: boolean; reason?: string } {
+    // 1. Agent explicitly set sizing → use as-is
+    if (explicit) return { value: explicit, inferred: false };
+
+    // 2. Agent provided a dimension → FIXED on that axis
+    if (dimension !== undefined) return { value: "FIXED", inferred: false };
+
+    // 3. Infer from context (only for fresh creates, not updates)
+    if (!autoDefault) return { value: undefined, inferred: false };
+
+    // 3a. Child of auto-layout parent → read parent's direction + sizing
+    if (parentIsAL) {
+      const isH = field === "layoutSizingHorizontal";
+      const isCrossAxis = parentDir === "HORIZONTAL" ? !isH : isH;
+
+      if (isCrossAxis) {
+        // Cross-axis: match parent's constraint on this axis.
+        // Parent HUGs → child can't fill (would collapse), so HUG.
+        // Parent FIXED/FILL → child should stretch to fill available space.
+        const parentCross = isH ? parentSizingH : parentSizingV;
+        const fill = parentCross !== "HUG";
+        return { value: fill ? "FILL" : "HUG", inferred: true,
+          reason: fill ? "stretch to fill parent" : "parent hugs on this axis" };
+      }
+      // Primary axis: content-sized along the flow direction
+      return { value: "HUG", inferred: true, reason: "shrink to content along flow" };
     }
+
+    // 3b. Node is auto-layout but not inside AL parent (top-level) → HUG both axes
+    if (nodeIsAL) return { value: "HUG", inferred: true, reason: "shrink to content" };
+
+    // 3c. Frame-like node, no AL context — default HUG (shrink to content, like HTML)
+    // The HUG validation will enable auto-layout on the node automatically.
+    if (nodeHasLayoutMode) return { value: "HUG", inferred: true, reason: "shrink to content" };
+
+    return { value: undefined, inferred: false };
   }
 
-  if (parentIsAL) {
-    const isHorizontal = (parent as any).layoutMode === "HORIZONTAL";
-    const crossField = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
-    const crossValue = isHorizontal ? p.layoutSizingVertical : p.layoutSizingHorizontal;
+  const hAxis = inferAxis("layoutSizingHorizontal", p.layoutSizingHorizontal, p.width);
+  const vAxis = inferAxis("layoutSizingVertical", p.layoutSizingVertical, p.height);
+  const axes: Array<{ field: "layoutSizingHorizontal" | "layoutSizingVertical"; value: string | undefined; inferred: boolean; reason?: string }> = [
+    { field: "layoutSizingHorizontal", ...hAxis },
+    { field: "layoutSizingVertical", ...vAxis },
+  ];
 
-    // Cross-axis not specified by agent
-    if (!crossValue && crossField in node) {
-      if (autoDefault) {
-        // Fresh frames/shapes: default cross-axis to FILL
-        (node as any)[crossField] = "FILL";
-      } else if ((node as any)[crossField] === "HUG" || (node as any)[crossField] === "FIXED") {
-        // Instances/updates: warn but don't override
-        hints.push({ type: "suggest", message: `${crossField} is '${(node as any)[crossField]}' inside auto-layout parent. Consider ${crossField}:"FILL" to fill available space.` });
+  // ── Apply each axis with validation ────────────────────────────
+  for (const axis of axes) {
+    let { value } = axis;
+    const { field, inferred, reason } = axis;
+    if (!value || !(field in node)) continue;
+
+    // FILL needs an AL parent — downgrade to HUG to avoid clipping at arbitrary size
+    if (value === "FILL" && !parentIsAL) {
+      hints.push({ type: "warn", message: `${field}:'FILL' requires an auto-layout parent — using HUG instead. Set the parent's layoutMode to enable auto-layout for FILL.` });
+      value = "HUG";
+    }
+
+    // HUG needs auto-layout on the node (frames) or an AL parent (text)
+    if (value === "HUG") {
+      const isTextInAL = node.type === "TEXT" && parentIsAL;
+      if (!nodeIsAL && !isTextInAL) {
+        if (nodeHasLayoutMode) {
+          // Frame-like node — enable AL so HUG works
+          (node as any).layoutMode = "VERTICAL";
+          nodeIsAL = true;
+          hints.push({ type: "suggest", message: `${field}:'HUG' requires auto-layout — enabled layoutMode:'VERTICAL'.` });
+        } else {
+          // Text/shapes outside AL — contradictory, can't resolve
+          throw new Error(`${field}:'HUG' is not supported on ${node.type} outside auto-layout. Place this node inside an auto-layout parent (set parentId to an auto-layout frame).`);
+        }
       }
     }
 
-    // Warn if both axes ended up FIXED inside auto-layout (likely unintended)
+    (node as any)[field] = value;
+
+    // Report inferred decisions so the agent knows what we chose
+    if (inferred) {
+      const dim = field === "layoutSizingHorizontal" ? "width" : "height";
+      hints.push({ type: "suggest", message: `No ${dim} specified — defaulted to ${field}:'${value}' (${reason}).` });
+    }
+  }
+
+  // ── HUG resize: shrink axes without explicit dimensions to 1px ──
+  // HUG means "shrink to content" — 1px is the correct starting size (grows when children are added).
+  // Without this, empty HUG frames sit at Figma's default 100×100.
+  if ("resize" in node) {
+    const hugH = (node as any).layoutSizingHorizontal === "HUG" && p.width === undefined;
+    const hugV = (node as any).layoutSizingVertical === "HUG" && p.height === undefined;
+    if (hugH || hugV) {
+      (node as any).resize(
+        hugH ? 1 : (node as any).width,
+        hugV ? 1 : (node as any).height,
+      );
+    }
+  }
+
+  // ── Post-apply: warn about FIXED/FIXED inside auto-layout ─────
+  if (parentIsAL) {
     if ((node as any).layoutSizingHorizontal === "FIXED" && (node as any).layoutSizingVertical === "FIXED") {
-      hints.push({ type: "warn", message: "Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout." });
+      hints.push({ type: "warn", message: "Child has FIXED sizing on both axes inside auto-layout parent. Consider 'FILL' or 'HUG' for responsive layout." });
+    }
+  }
+
+  // ── Suggest for updates (autoDefault=false): don't override, just advise ──
+  if (!autoDefault && parentIsAL) {
+    const isHorizontal = parentDir === "HORIZONTAL";
+    const crossField = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+    const crossExplicit = isHorizontal ? p.layoutSizingVertical : p.layoutSizingHorizontal;
+    if (!crossExplicit && crossField in node) {
+      const current = (node as any)[crossField];
+      if (current === "HUG" || current === "FIXED") {
+        hints.push({ type: "suggest", message: `${crossField} is '${current}' inside auto-layout parent. Consider '${crossField}:"FILL"' to fill available space.` });
+      }
     }
   }
 }
@@ -279,17 +389,16 @@ export async function appendAndApplySizing(
   hints: Hint[],
   autoDefault = true,
 ): Promise<BaseNode> {
-  // Pre-parent: apply non-FILL sizing immediately (HUG/FIXED work without a parent)
+  // Pre-parent: only apply FIXED immediately (safe without a parent).
+  // HUG and FILL have prerequisites (auto-layout on node / parent) validated by applySizing.
   for (const field of ["layoutSizingHorizontal", "layoutSizingVertical"] as const) {
     const value = p[field];
-    if (!value || !(field in node)) continue;
-    if (value === "FILL" && p.parentId) continue; // defer until after append
-    (node as any)[field] = value;
+    if (value === "FIXED" && field in node) (node as any)[field] = value;
   }
 
   const parent = await appendToParent(node, p.parentId);
 
-  // Post-parent: apply deferred FILL + defaults/warnings
+  // Post-parent: applySizing handles HUG promotion, FILL validation, cross-axis defaults
   applySizing(node, parent, p, hints, autoDefault);
 
   return parent;
@@ -522,7 +631,6 @@ const WRONG_SHAPE_CORRECTIONS: Record<string, string> = {
   borderWidth: `"borderWidth" is not a valid param. Use strokeWeight: 1 (number or variable name string)`,
   borderRadius: `"borderRadius" is not a valid param. Use cornerRadius: 8 (number or variable name string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius`,
   radius: `"radius" is not a valid param. Use cornerRadius: 8 (number or variable name string)`,
-  children: `"children" array is not a valid param. Create children separately then reparent, or pass parentId when creating child nodes.`,
   font: `"font" is not a valid param. Use fontFamily: "Inter" and fontStyle: "Bold" (or fontWeight: 700)`,
   text: `"text" is not a valid param on frames. For text nodes, use text(method: "create", items: [{text: "Hello", parentId: "<frameId>"}])`,
   content: `"content" is not a valid param. For text nodes, use text(method: "create", items: [{text: "Hello"}])`,

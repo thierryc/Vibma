@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
@@ -29,111 +29,171 @@ function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
 
 // -- inline children --
 
-import { resolveFontAsync, clearFontCache } from "./create-text";
+import { prepCreateText, createTextSingle, type CreateTextContext } from "./create-text";
 
 /**
- * Create child nodes inline during component creation.
- * Text children with componentPropertyName auto-create TEXT properties and bind.
- * Frame children recurse for nested trees.
+ * Normalize inline child types in-place before processing.
+ * - Lowercase: "TEXT" → "text"
+ * - Infer: {text:"hello"} → type:"text", {componentId:"1:2"} → type:"instance"
+ * - Alias: instance.id → componentId
+ * Recurses into frame/component children.
  */
-async function createInlineChildren(
+export function normalizeInlineChildTypes(children: any[]): void {
+  for (const child of children) {
+    if (child.type) {
+      child.type = child.type.toLowerCase();
+    } else if (child.text !== undefined || child.characters !== undefined) {
+      child.type = "text";
+    } else if (child.componentId || child.id) {
+      child.type = "instance";
+    } else if (child.name) {
+      child.type = "frame";
+    }
+    // Alias: id → componentId for instances
+    if (child.type === "instance" && !child.componentId && child.id) {
+      child.componentId = child.id;
+      delete child.id;
+    }
+    // Recurse
+    if ((child.type === "frame" || child.type === "component") && child.children?.length) {
+      normalizeInlineChildTypes(child.children);
+    }
+  }
+}
+
+export function collectTextChildren(children: any[]): any[] {
+  const result: any[] = [];
+  for (const child of children) {
+    if (child.type === "text") result.push(child);
+    else if ((child.type === "frame" || child.type === "component") && child.children?.length) {
+      result.push(...collectTextChildren(child.children));
+    }
+  }
+  return result;
+}
+
+/**
+ * Create child nodes inline during creation.
+ * Works for both components (with property binding) and plain frames (without).
+ * Text children delegate to createTextSingle for full feature parity.
+ * Frame children use setupFrameNode and recurse for nested trees.
+ */
+export async function createInlineChildren(
   appendTo: FrameNode | ComponentNode,
-  comp: ComponentNode,
+  comp: ComponentNode | null,
   children: any[],
   hints: Hint[],
+  textCtx: CreateTextContext,
 ): Promise<void> {
   for (const child of children) {
+    // Type normalization (lowercase, inference, id→componentId) handled by normalizeInlineChildTypes pre-pass.
+    // Catch anything that still has no type (e.g. empty object).
+    if (!child.type) {
+      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", or "component".` });
+      continue;
+    }
+
     if (child.type === "text") {
-      // Normalize color aliases to canonical fills form
       normalizeAliases(child, TEXT_ALIAS_KEYS);
 
-      const family = child.fontFamily || "Inter";
-      const style = child.fontStyle || "Regular";
-      const font = await resolveFontAsync(family, style);
-      const text = child.text ?? child.characters ?? "Text";
-
-      const textNode = figma.createText();
-      textNode.fontName = font;
-      textNode.fontSize = child.fontSize || 14;
-
-      const { setCharacters } = await import("../utils/figma-helpers");
-      await setCharacters(textNode, text);
-      textNode.name = child.name || child.componentPropertyName || text;
-
-      // Color: fills is now canonical (normalized above)
-      const colorHints: Hint[] = [];
-      const colorSet = await applyFillWithAutoBind(textNode, { fills: child.fills }, colorHints);
-      if (!colorSet && child.fills === undefined) {
-        textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
-      }
-      hints.push(...colorHints);
-
-      appendTo.appendChild(textNode);
-
-      // Sizing: default FILL + HUG inside auto-layout parent
-      const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
-      const effectiveH = child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
-      const effectiveV = child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
-
-      // textAutoResize must be set before text style (which changes font) and before FILL sizing
-      if (child.textAutoResize) {
-        textNode.textAutoResize = child.textAutoResize;
-      } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
-        textNode.textAutoResize = "HEIGHT";
-      }
-
-      applySizing(textNode, appendTo, {
-        layoutSizingHorizontal: effectiveH,
-        layoutSizingVertical: effectiveV,
-      }, hints);
-
-      // Text style applied after sizing — setTextStyleIdAsync loads its own font
-      if (child.textStyleName) {
-        const styles = await figma.getLocalTextStylesAsync();
-        const match = styles.find(s => s.name === child.textStyleName) ||
-          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
-        if (match) {
-          await (textNode as any).setTextStyleIdAsync(match.id);
-        }
-      }
-
-      // Auto-create TEXT property and bind
-      if (child.componentPropertyName) {
+      // Pre-create TEXT property on the component and capture the actual key
+      // (Figma may rename duplicates: "Label" → "Label2")
+      let resolvedTextKey: string | undefined;
+      if (child.componentPropertyName && comp) {
+        const text = child.text ?? child.characters ?? "Text";
         const keysBefore = new Set(Object.keys(comp.componentPropertyDefinitions));
         comp.addComponentProperty(child.componentPropertyName, "TEXT", text);
-        // Find the newly added key (Figma may rename duplicates: "Label" → "Label2")
         const keysAfter = Object.keys(comp.componentPropertyDefinitions);
-        const newKey = keysAfter.find(k => !keysBefore.has(k));
-        if (newKey) {
-          (textNode as any).componentPropertyReferences = { characters: newKey };
+        resolvedTextKey = keysAfter.find(k => !keysBefore.has(k));
+      }
+
+      // Delegate to shared text creation logic — omit componentPropertyName so we bind manually
+      const { componentPropertyName: _, ...textParams } = child;
+      const result = await createTextSingle({
+        ...textParams,
+        parentId: appendTo.id,
+        ...(comp ? { componentId: comp.id } : {}),
+        name: child.name || child.componentPropertyName || child.text || child.characters || "Text",
+      }, textCtx);
+
+      // Bind to the exact key (not by name resolution which can hit the wrong duplicate)
+      if (resolvedTextKey && result.id) {
+        const textNode = await figma.getNodeByIdAsync(result.id);
+        if (textNode) {
+          (textNode as any).componentPropertyReferences = { ...(textNode as any).componentPropertyReferences, characters: resolvedTextKey };
         }
       }
+
+      if (result.hints) hints.push(...result.hints);
     } else if (child.type === "frame") {
-      // Normalize fill/stroke aliases to canonical form before setupFrameNode
       normalizeAliases(child, FRAME_ALIAS_KEYS);
+      child.parentId = appendTo.id;
 
       const frame = figma.createFrame();
-      frame.name = child.name || "Frame";
-      frame.fills = [];
+      try {
+        frame.x = child.x ?? 0;
+        frame.y = child.y ?? 0;
+        if (child.width !== undefined || child.height !== undefined) {
+          frame.resize(child.width ?? frame.width, child.height ?? frame.height);
+        }
+        frame.name = child.name || "Frame";
+        frame.fills = [];
 
-      const { hints: frameHints } = await setupFrameNode(frame, child);
-      hints.push(...frameHints);
+        const { hints: frameHints } = await setupFrameNode(frame, child);
+        hints.push(...frameHints);
 
-      appendTo.appendChild(frame);
-
-      // Smart defaults: FILL + HUG inside auto-layout parent (same as text children)
-      const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
-      applySizing(frame, appendTo, {
-        layoutSizingHorizontal: child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined),
-        layoutSizingVertical: child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined),
-      }, hints);
-
-      // Recurse for nested children — properties bind to the root component
-      if (child.children?.length) {
-        await createInlineChildren(frame, comp, child.children, hints);
+        // Recurse for nested children — properties bind to the root component
+        if (child.children?.length) {
+          await createInlineChildren(frame, comp, child.children, hints, textCtx);
+        }
+      } catch (e) {
+        frame.remove();
+        throw e;
       }
+    } else if (child.type === "instance") {
+      if (!child.componentId) {
+        hints.push({ type: "error", message: "Inline instance child requires componentId." });
+        continue;
+      }
+
+      const result = await instanceCreateSingle({
+        ...child,
+        parentId: appendTo.id,
+      });
+
+      // Post-create: bind INSTANCE_SWAP property using the resolved component
+      if (child.componentPropertyName && comp && result.id) {
+        // Resolve the main component for the default value (handles COMPONENT_SET → variant)
+        const tempInst = await figma.getNodeByIdAsync(result.id) as InstanceNode | null;
+        const mainComp = tempInst && await tempInst.getMainComponentAsync();
+        if (mainComp) {
+          const keysBefore = new Set(Object.keys(comp.componentPropertyDefinitions));
+          comp.addComponentProperty(child.componentPropertyName, "INSTANCE_SWAP", mainComp.id);
+          const keysAfter = Object.keys(comp.componentPropertyDefinitions);
+          const swapKey = keysAfter.find(k => !keysBefore.has(k));
+          if (swapKey) {
+            // Re-fetch instance after modifying component properties (Figma may invalidate refs)
+            const inst = await figma.getNodeByIdAsync(result.id) as InstanceNode | null;
+            if (inst) {
+              inst.componentPropertyReferences = { ...inst.componentPropertyReferences, mainComponent: swapKey };
+            }
+          }
+        }
+      }
+
+      if (result.hints) hints.push(...result.hints);
+    } else if (child.type === "component") {
+      if (!child.name) {
+        hints.push({ type: "error", message: "Inline component child requires name." });
+        continue;
+      }
+      const result = await createComponentSingle({
+        ...child,
+        parentId: appendTo.id,
+      });
+      if (result.hints) hints.push(...result.hints);
     } else {
-      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text' or 'frame'.` });
+      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', or 'component'.` });
     }
   }
 }
@@ -143,17 +203,13 @@ async function createInlineChildren(
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
 
-  // Components are top-level containers — HUG on both axes by default
-  if (p.layoutMode && p.layoutMode !== "NONE") {
-    p.layoutSizingHorizontal ??= "HUG";
-    p.layoutSizingVertical ??= "HUG";
-  }
-
   const comp = figma.createComponent();
   try {
     comp.x = p.x ?? 0;
     comp.y = p.y ?? 0;
-    comp.resize(p.width ?? 100, p.height ?? 100);
+    if (p.width !== undefined || p.height !== undefined) {
+      comp.resize(p.width ?? comp.width, p.height ?? comp.height);
+    }
     comp.name = p.name;
     if (p.description) comp.description = p.description;
     comp.fills = [];
@@ -162,8 +218,10 @@ async function createComponentSingle(p: any) {
 
     // Create inline children if provided (before explicit properties so auto-created TEXT props don't conflict)
     if (p.children?.length) {
-      clearFontCache();
-      await createInlineChildren(comp, comp, p.children, hints);
+      normalizeInlineChildTypes(p.children);
+      const textChildren = collectTextChildren(p.children);
+      const textCtx = await prepCreateText({ items: textChildren });
+      await createInlineChildren(comp, comp, p.children, hints, textCtx);
     }
 
     // Add explicit component properties if provided
@@ -191,12 +249,16 @@ async function createComponentSingle(p: any) {
       }
     }
 
-    warnUnboundText(comp, hints);
+    // Post-children checks: single findTextNodes traversal for both warnings
+    // Skip warnUnboundText if inline children were used — createTextSingle already warned per-node
+    if (!p.children?.length) {
+      warnUnboundText(comp, hints);
+    }
 
     // Warn if component has text children but no width constraint
     if (comp.layoutMode !== "NONE" && comp.layoutSizingHorizontal === "HUG" && comp.layoutSizingVertical === "HUG") {
-      const textNodes = findTextNodes(comp, true);
-      if (textNodes.length > 0 && textNodes.some(t => (t.characters?.length ?? 0) > 20)) {
+      const allText = findTextNodes(comp, true);
+      if (allText.length > 0 && allText.some(t => (t.characters?.length ?? 0) > 20)) {
         hints.push({ type: "warn", message: `"${comp.name}" has text content but no width constraint — text won't wrap. Set a width and layoutSizingHorizontal:"FIXED".` });
       }
     }
@@ -288,10 +350,74 @@ async function fromNodeSingle(p: any) {
   return result;
 }
 
+/**
+ * Validate that inline variant children all have compatible shapes.
+ * "Shape" = sorted set of {name, type} from the children definition.
+ * Rejects non-component types and mismatched structures.
+ */
+function validateVariantChildren(children: any[]): void {
+  // All children must be type: "component"
+  const invalid = children.filter(c => c.type !== "component");
+  if (invalid.length > 0) {
+    const types = [...new Set(invalid.map(c => c.type || "undefined"))].join(", ");
+    throw new Error(`Variant set children must all be type:"component". Found: ${types}. Use components(method:"create", type:"component") for non-variant children.`);
+  }
+
+  // All must have names
+  const unnamed = children.filter(c => !c.name);
+  if (unnamed.length > 0) {
+    throw new Error(`All variant components require a name.`);
+  }
+
+  // Validate consistent child shape across variants
+  function childShape(c: any): string {
+    const kids = c.children || [];
+    const shape = kids.map((k: any) => {
+      const type = k.type || "unknown";
+      const name = k.name || k.componentPropertyName || k.text || "";
+      return `${type}:${name}`;
+    }).sort();
+    return shape.join("|");
+  }
+
+  const shapes = children.map(c => ({ name: c.name, shape: childShape(c) }));
+  const firstShape = shapes[0].shape;
+  const mismatched = shapes.filter(s => s.shape !== firstShape);
+  if (mismatched.length > 0) {
+    throw new Error(`Variant components must have the same child structure. "${shapes[0].name}" has [${firstShape.replace(/\|/g, ", ")}] but "${mismatched[0].name}" has [${mismatched[0].shape.replace(/\|/g, ", ")}]. Ensure all variants define the same children in the same order.`);
+  }
+}
+
 async function combineSingle(p: any) {
   // Accept nodeIds as alias for componentIds (consistent with group/boolean_operation)
   if (!p.componentIds && p.nodeIds) p.componentIds = p.nodeIds;
-  if (!p.componentIds?.length || p.componentIds.length < 2) throw new Error("Need at least 2 components");
+
+  // children = inline variant definitions, componentIds = existing components — mutually exclusive
+  if (p.children?.length && p.componentIds?.length) {
+    throw new Error("Cannot use both children and componentIds. Use children to define variants inline, or componentIds to combine existing components.");
+  }
+
+  // Inline variant creation path
+  if (p.children?.length) {
+    normalizeInlineChildTypes(p.children);
+    validateVariantChildren(p.children);
+    if (p.children.length < 2) throw new Error("Need at least 2 variant components in children.");
+
+    // Create each variant component
+    const compIds: string[] = [];
+    const hints: Hint[] = [];
+    for (const child of p.children) {
+      const result = await createComponentSingle(child);
+      if (!result.id) throw new Error(`Failed to create variant component "${child.name}"`);
+      compIds.push(result.id);
+      if (result.hints) hints.push(...result.hints);
+    }
+    // Delegate to the existing combine path with created component IDs
+    const { children: _, ...rest } = p;
+    return combineSingle({ ...rest, componentIds: compIds, _inlineHints: hints });
+  }
+
+  if (!p.componentIds?.length || p.componentIds.length < 2) throw new Error("Provide either componentIds (min 2 existing component IDs) or children (min 2 inline variant components).");
   const comps: ComponentNode[] = [];
   for (const id of p.componentIds) {
     const node = await figma.getNodeByIdAsync(id);
@@ -336,13 +462,10 @@ async function combineSingle(p: any) {
   set.fills = [];
   set.cornerRadius = 0;
 
-  // Variant set containers — HUG on both axes by default
-  if (p.layoutMode && p.layoutMode !== "NONE") {
-    p.layoutSizingHorizontal ??= "HUG";
-    p.layoutSizingVertical ??= "HUG";
-  }
-
   const { hints } = await setupFrameNode(set as any, p);
+
+  // Carry forward hints from inline variant creation
+  if (p._inlineHints?.length) hints.push(...p._inlineHints);
 
   // Rename auto-generated variant property if variantPropertyName is specified
   if (p.variantPropertyName) {

@@ -75,7 +75,7 @@ const TEXT_CREATE_KEYS = new Set([
   "fillColor", "fillVariableName", "fillStyleName", // aliases → fills via batchHandler
 ]) as ReadonlySet<string>;
 
-interface CreateTextContext {
+export interface CreateTextContext {
   textStyles: any[] | null;
   paintStyles: any[] | null;
   resolvedTextStyleMap: Map<string, any>;
@@ -86,7 +86,7 @@ interface CreateTextContext {
 /**
  * Batch-level prep: collect fonts, resolve styles, preload everything once.
  */
-async function prepCreateText(params: any): Promise<CreateTextContext> {
+export async function prepCreateText(params: any): Promise<CreateTextContext> {
   const items = params.items || [params];
 
   clearFontCache();
@@ -162,7 +162,7 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
  * Create a single text node. Returns { id, warning? }.
  * batchHandler handles depth enrichment, warning hoisting, and error wrapping.
  */
-async function createTextSingle(p: any, ctx: CreateTextContext) {
+export async function createTextSingle(p: any, ctx: CreateTextContext) {
   const {
     x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400, // characters: legacy fallback, aliased to text at MCP level
     fontFamily = "Inter", fontStyle,

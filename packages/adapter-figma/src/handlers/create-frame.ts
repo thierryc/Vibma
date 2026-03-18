@@ -1,6 +1,56 @@
 import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
+import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
+import { prepCreateText } from "./create-text";
+
+/**
+ * Resolve the effective layoutMode from params.
+ * Single source of truth for auto-layout intent detection on create paths.
+ *
+ * Priority:
+ *   1. Explicit layoutMode → use as-is
+ *   2. AL-only params present (padding, spacing, alignment, wrap) → infer VERTICAL
+ *   3. HUG sizing requested → infer VERTICAL (HUG requires AL on the node)
+ *   4. Default → NONE (static frame)
+ *
+ * Explicit layoutMode:"NONE" is respected — the agent opted out.
+ */
+function resolveLayoutMode(p: any): { layoutMode: string; inferred: boolean } {
+  const hasALParams =
+    p.paddingTop !== undefined || p.paddingRight !== undefined ||
+    p.paddingBottom !== undefined || p.paddingLeft !== undefined ||
+    p.itemSpacing !== undefined ||
+    p.primaryAxisAlignItems !== undefined ||
+    p.counterAxisAlignItems !== undefined ||
+    p.counterAxisSpacing !== undefined ||
+    (p.layoutWrap !== undefined && p.layoutWrap !== "NO_WRAP");
+
+  const hasHUGSizing =
+    p.layoutSizingHorizontal === "HUG" || p.layoutSizingVertical === "HUG";
+
+  // Explicit NONE + AL params is contradictory — reject
+  if (p.layoutMode === "NONE" && (hasALParams || hasHUGSizing)) {
+    const alProps = [
+      hasALParams && "padding/spacing/alignment",
+      hasHUGSizing && "HUG sizing",
+    ].filter(Boolean).join(" and ");
+    throw new Error(`layoutMode:'NONE' conflicts with ${alProps}. Static frames do not support layout properties. Remove layoutMode:'NONE' to enable auto-layout.`);
+  }
+
+  // Explicit NONE without dimensions — agent must specify size for static frames
+  if (p.layoutMode === "NONE" && (p.width === undefined || p.height === undefined)) {
+    throw new Error("layoutMode:'NONE' creates a static frame — specify both width and height. Omit layoutMode to let the frame shrink to content automatically.");
+  }
+
+  if (p.layoutMode !== undefined) return { layoutMode: p.layoutMode, inferred: false };
+
+  if (hasALParams || hasHUGSizing) {
+    return { layoutMode: "VERTICAL", inferred: true };
+  }
+
+  return { layoutMode: "NONE", inferred: false };
+}
 
 /**
  * Shared setup for frame-like nodes (Frame, Component).
@@ -23,14 +73,21 @@ export async function setupFrameNode(
     p.paddingLeft ??= p.padding;
   }
 
+  // ── Resolve layoutMode: single source of truth for create path ──
+  const { layoutMode, inferred: inferredLayoutMode } = resolveLayoutMode(p);
+
   const {
-    layoutMode = "NONE", layoutWrap = "NO_WRAP",
+    layoutWrap = "NO_WRAP",
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
     parentId,
   } = p;
 
   const hints: Hint[] = [];
+
+  if (inferredLayoutMode) {
+    hints.push({ type: "suggest", message: `No layoutMode specified — defaulted to layoutMode:'${layoutMode}' because padding/spacing/alignment require auto-layout.` });
+  }
 
   // Corner radius
   await applyCornerRadius(node, p, hints);
@@ -57,7 +114,11 @@ export async function setupFrameNode(
     }, hints);
     node.primaryAxisAlignItems = primaryAxisAlignItems;
     node.counterAxisAlignItems = counterAxisAlignItems;
-    if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
+    if (p.counterAxisSpacing !== undefined) {
+      if (layoutWrap !== "WRAP") {
+        node.layoutWrap = "WRAP";
+        hints.push({ type: "confirm", message: "Enabled layoutWrap='WRAP' because counterAxisSpacing requires it." });
+      }
       await applyTokens(node, { counterAxisSpacing: p.counterAxisSpacing }, hints);
     }
   }
@@ -136,11 +197,21 @@ async function createSingleFrame(p: any) {
   try {
     frame.x = p.x ?? 0;
     frame.y = p.y ?? 0;
-    frame.resize(p.width ?? 100, p.height ?? 100);
+    if (p.width !== undefined || p.height !== undefined) {
+      frame.resize(p.width ?? frame.width, p.height ?? frame.height);
+    }
     frame.name = p.name || "Frame";
     frame.fills = [];
 
     const { hints } = await setupFrameNode(frame, p);
+
+    // Create inline children if provided (frames only — no component property binding)
+    if (p.children?.length) {
+      normalizeInlineChildTypes(p.children);
+      const textChildren = collectTextChildren(p.children);
+      const textCtx = await prepCreateText({ items: textChildren });
+      await createInlineChildren(frame, null, p.children, hints, textCtx);
+    }
 
     const result: any = { id: frame.id };
     if (hints.length > 0) result.hints = hints;
@@ -160,18 +231,20 @@ async function createSingleAutoLayout(p: any) {
     p.paddingLeft ??= p.padding;
   }
 
+  // children + nodeIds is contradictory — nodeIds wraps existing nodes, children creates new ones
+  if (p.nodeIds?.length && p.children?.length) {
+    throw new Error("Cannot use both nodeIds and children. Use nodeIds to wrap existing nodes, or children to create inline child nodes.");
+  }
+
   // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
+  // auto_layout always creates AL — force VERTICAL if not specified.
+  // Sizing is handled by applySizing (HUG for top-level, smart cross-axis for nested).
   if (!p.nodeIds?.length) {
     const { nodeIds: _, ...rest } = p;
-    // Only inject HUG defaults when agent didn't specify and there's no parentId
-    // (applySizing handles smart cross-axis defaults when parentId is set)
     return createSingleFrame({
       ...rest,
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
-      // Top-level auto_layout: default HUG. Child: let applySizing decide.
-      layoutSizingHorizontal: p.layoutSizingHorizontal || (p.width !== undefined ? "FIXED" : p.parentId ? undefined : "HUG"),
-      layoutSizingVertical: p.layoutSizingVertical || (p.height !== undefined ? "FIXED" : p.parentId ? undefined : "HUG"),
     });
   }
 

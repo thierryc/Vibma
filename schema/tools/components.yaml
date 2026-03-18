@@ -91,13 +91,7 @@ methods:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
           description: { type: string, optional: true, description: "Component description (shown in Figma's component panel)" }
-          children:
-            type: array
-            coerce: json
-            optional: true
-            description: 'Inline child nodes. Text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Text with componentPropertyName auto-creates and binds a TEXT property — no need to add it to properties separately.'
-            items:
-              type: object
+          children: { $ref: inlineChildrenComponent }
           properties:
             type: array
             coerce: json
@@ -119,8 +113,9 @@ methods:
         description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
         params:
           $mixin: frame_params
-          componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)", aliases: [nodeIds] }
+          componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
+          children: { $ref: inlineVariants }
     response:
       type: batch
       item: { id: { type: string } }

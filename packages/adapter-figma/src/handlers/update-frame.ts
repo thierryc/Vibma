@@ -10,20 +10,57 @@ export async function updateFrameSingle(p: any) {
 
   const hints: Hint[] = [];
   const isLayoutType = LAYOUT_TYPES.includes(node.type);
+
+  // ── Detect whether auto-layout properties are being set ────────
+  // If the agent sets padding, spacing, alignment, or wrap without an explicit
+  // layoutMode, they clearly intend auto-layout. Promote to HORIZONTAL and confirm
+  // rather than throwing — the intent is readable, so honour it.
+
   const settingLayoutMode = p.layoutMode !== undefined;
-  // Auto-layout is active if already set OR being set in this call
-  const hasAutoLayout = settingLayoutMode
+  let hasAutoLayout = settingLayoutMode
     ? p.layoutMode !== "NONE"
     : (isLayoutType && (node as any).layoutMode !== "NONE");
 
+  const needsAutoLayout = !hasAutoLayout && isLayoutType && (
+    p.paddingTop !== undefined || p.paddingRight !== undefined ||
+    p.paddingBottom !== undefined || p.paddingLeft !== undefined ||
+    p.primaryAxisAlignItems !== undefined || p.counterAxisAlignItems !== undefined ||
+    p.itemSpacing !== undefined || p.counterAxisSpacing !== undefined ||
+    p.layoutWrap !== undefined
+  );
+
+  if (needsAutoLayout) {
+    (node as any).layoutMode = "HORIZONTAL";
+    hasAutoLayout = true;
+    hints.push({ type: "confirm", message: "Enabled auto-layout (HORIZONTAL) because layout properties (padding/spacing/alignment) require it." });
+  }
+
+  // Guard: layout properties on non-layout nodes (TEXT, RECTANGLE, etc.) are
+  // clearly a wrong-target mistake. Warn + skip all layout work rather than throw.
+  if (!isLayoutType) {
+    const layoutProps = [
+      settingLayoutMode && "layoutMode",
+      p.layoutWrap !== undefined && "layoutWrap",
+      (p.paddingTop !== undefined || p.paddingRight !== undefined ||
+       p.paddingBottom !== undefined || p.paddingLeft !== undefined) && "padding",
+      (p.primaryAxisAlignItems !== undefined || p.counterAxisAlignItems !== undefined) && "alignment",
+      p.itemSpacing !== undefined && "itemSpacing",
+      p.counterAxisSpacing !== undefined && "counterAxisSpacing",
+      (p.layoutSizingHorizontal !== undefined || p.layoutSizingVertical !== undefined) && "sizing",
+    ].filter(Boolean) as string[];
+    if (layoutProps.length > 0) {
+      hints.push({ type: "warn", message: `Node type ${node.type} does not support layout properties (${layoutProps.join(", ")}) — ignored. These only work on FRAME, COMPONENT, COMPONENT_SET, and INSTANCE.` });
+      const result: any = {};
+      if (hints.length > 0) result.hints = hints;
+      return result;
+    }
+  }
+
   // 1. Layout mode & wrap
   if (settingLayoutMode) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support layoutMode`);
     (node as any).layoutMode = p.layoutMode;
     if (p.layoutMode !== "NONE" && p.layoutWrap) (node as any).layoutWrap = p.layoutWrap;
   } else if (p.layoutWrap !== undefined) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support layoutWrap`);
-    if (!hasAutoLayout) throw new Error("layoutWrap requires auto-layout (layoutMode !== NONE)");
     (node as any).layoutWrap = p.layoutWrap;
   }
 
@@ -31,8 +68,6 @@ export async function updateFrameSingle(p: any) {
   const hasPadding = p.paddingTop !== undefined || p.paddingRight !== undefined ||
                      p.paddingBottom !== undefined || p.paddingLeft !== undefined;
   if (hasPadding) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support padding`);
-    if (!hasAutoLayout) throw new Error("Padding requires auto-layout (layoutMode !== NONE)");
     await applyTokens(node, {
       paddingTop: p.paddingTop, paddingRight: p.paddingRight,
       paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
@@ -40,29 +75,25 @@ export async function updateFrameSingle(p: any) {
   }
 
   // 3. Alignment
-  if (p.primaryAxisAlignItems !== undefined || p.counterAxisAlignItems !== undefined) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support axis alignment`);
-    if (!hasAutoLayout) throw new Error("Axis alignment requires auto-layout (layoutMode !== NONE)");
-    if (p.primaryAxisAlignItems !== undefined) (node as any).primaryAxisAlignItems = p.primaryAxisAlignItems;
-    if (p.counterAxisAlignItems !== undefined) (node as any).counterAxisAlignItems = p.counterAxisAlignItems;
-  }
+  if (p.primaryAxisAlignItems !== undefined) (node as any).primaryAxisAlignItems = p.primaryAxisAlignItems;
+  if (p.counterAxisAlignItems !== undefined) (node as any).counterAxisAlignItems = p.counterAxisAlignItems;
 
-  // 4. Sizing (shared FILL validation — warns if parent is not auto-layout)
+  // 4. Sizing (shared validation — downgrades invalid HUG/FILL with warnings)
   if (p.layoutSizingHorizontal !== undefined || p.layoutSizingVertical !== undefined) {
     applySizing(node as SceneNode, node.parent, p, hints, false);
   }
 
   // 5. Spacing (supports token strings for variable binding)
   if (p.itemSpacing !== undefined) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support item spacing`);
-    if (!hasAutoLayout) throw new Error("Item spacing requires auto-layout (layoutMode !== NONE)");
     await applyTokens(node, { itemSpacing: p.itemSpacing }, hints);
   }
   if (p.counterAxisSpacing !== undefined) {
-    if (!isLayoutType) throw new Error(`Node type ${node.type} does not support counter-axis spacing`);
-    if (!hasAutoLayout) throw new Error("Counter-axis spacing requires auto-layout");
+    // counterAxisSpacing implies WRAP — enable it if not already set
     const wrap = p.layoutWrap || (node as any).layoutWrap;
-    if (wrap !== "WRAP") throw new Error("counterAxisSpacing requires layoutWrap=WRAP");
+    if (wrap !== "WRAP") {
+      (node as any).layoutWrap = "WRAP";
+      hints.push({ type: "confirm", message: "Enabled layoutWrap='WRAP' because counterAxisSpacing requires it." });
+    }
     await applyTokens(node, { counterAxisSpacing: p.counterAxisSpacing }, hints);
   }
 

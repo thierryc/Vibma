@@ -48,6 +48,30 @@ effectEntry:
     visible: { type: boolean, coerce: true, optional: true }
     blendMode: { type: string, optional: true }
 
+inlineChildren:
+  type: array
+  coerce: json
+  optional: true
+  description: 'Inline child nodes. Text: {type:"text", text, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Instance: {type:"instance", componentId, variantProperties?, properties?}. Component: {type:"component", name, children?}. Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.'
+  items:
+    type: object
+
+inlineChildrenComponent:
+  type: array
+  coerce: json
+  optional: true
+  description: 'Inline child nodes. Text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Instance: {type:"instance", componentId, componentPropertyName?, variantProperties?, properties?}. Component: {type:"component", name, children?}. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property.'
+  items:
+    type: object
+
+inlineVariants:
+  type: array
+  coerce: json
+  optional: true
+  description: 'Inline variant components. Each must be {type:"component", name, children?, ...frame_params}. All variants must share the same child structure. Alternative to componentIds — do not combine both.'
+  items:
+    type: object
+
 fields:
   type: string[]
   coerce: json
