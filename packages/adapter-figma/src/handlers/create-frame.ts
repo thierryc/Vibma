@@ -57,14 +57,26 @@ function resolveLayoutMode(p: any): { layoutMode: string; inferred: boolean } {
  * Applies layout, fill, stroke, corner radius, opacity, min/max, WCAG checks.
  * Returns { parent, hints } so the caller can add type-specific logic.
  *
- * CONTRACT: `p` must have been through `normalizeAliases()` — `fills` and `strokes`
- * must be in canonical form (not `fillColor`, `fontColor`, etc.).
- * When called via batchHandler this is automatic; other callers must normalize first.
+ * Single source of truth for frame-like node setup.
+ * Handles: alias normalization, positioning, resize, fills reset,
+ * padding, layout mode, fill/stroke, corners, sizing, WCAG checks.
+ * Callers only need to set node-specific properties (name, description).
  */
 export async function setupFrameNode(
   node: FrameNode | ComponentNode,
   p: any,
 ): Promise<{ parent: BaseNode | null; hints: Hint[] }> {
+  // ── Normalize aliases: fillVariableName → fills, strokeVariableName → strokes ──
+  normalizeAliases(p, FRAME_ALIAS_KEYS);
+
+  // ── Common setup: position, resize, clear default fill ──
+  if (p.x !== undefined) node.x = p.x;
+  if (p.y !== undefined) node.y = p.y;
+  if (p.width !== undefined || p.height !== undefined) {
+    node.resize(p.width ?? node.width, p.height ?? node.height);
+  }
+  node.fills = [];
+
   // Expand padding shorthand → per-edge (token values preserved)
   if (p.padding !== undefined) {
     p.paddingTop ??= p.padding;
@@ -152,8 +164,11 @@ export async function setupFrameNode(
   // Append to parent + apply sizing (FILL deferred, smart cross-axis defaults, FIXED warning)
   const parent = await appendAndApplySizing(node, p, hints);
 
-  // Overlapping children: detect sibling at same position in non-auto-layout parent
-  checkOverlappingSiblings(node, parent, hints);
+  // Overlapping children: only check when agent explicitly set position.
+  // Nodes at default (0,0) without explicit x/y are not intentionally placed — no overlap warning.
+  if (p.x !== undefined || p.y !== undefined) {
+    checkOverlappingSiblings(node, parent, hints);
+  }
 
   // Context-aware HUG/HUG warning: only for containers that need a width constraint
   if (layoutMode !== "NONE" && node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
@@ -195,13 +210,7 @@ export async function setupFrameNode(
 async function createSingleFrame(p: any) {
   const frame = figma.createFrame();
   try {
-    frame.x = p.x ?? 0;
-    frame.y = p.y ?? 0;
-    if (p.width !== undefined || p.height !== undefined) {
-      frame.resize(p.width ?? frame.width, p.height ?? frame.height);
-    }
     frame.name = p.name || "Frame";
-    frame.fills = [];
 
     const { hints } = await setupFrameNode(frame, p);
 

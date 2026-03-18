@@ -126,18 +126,11 @@ export async function createInlineChildren(
 
       if (result.hints) hints.push(...result.hints);
     } else if (child.type === "frame") {
-      normalizeAliases(child, FRAME_ALIAS_KEYS);
       child.parentId = appendTo.id;
 
       const frame = figma.createFrame();
       try {
-        frame.x = child.x ?? 0;
-        frame.y = child.y ?? 0;
-        if (child.width !== undefined || child.height !== undefined) {
-          frame.resize(child.width ?? frame.width, child.height ?? frame.height);
-        }
         frame.name = child.name || "Frame";
-        frame.fills = [];
 
         const { hints: frameHints } = await setupFrameNode(frame, child);
         hints.push(...frameHints);
@@ -205,14 +198,8 @@ async function createComponentSingle(p: any) {
 
   const comp = figma.createComponent();
   try {
-    comp.x = p.x ?? 0;
-    comp.y = p.y ?? 0;
-    if (p.width !== undefined || p.height !== undefined) {
-      comp.resize(p.width ?? comp.width, p.height ?? comp.height);
-    }
     comp.name = p.name;
     if (p.description) comp.description = p.description;
-    comp.fills = [];
 
     const { hints } = await setupFrameNode(comp, p);
 
@@ -456,12 +443,11 @@ async function combineSingle(p: any) {
     ? comps[0].parent : figma.currentPage;
   const set = figma.combineAsVariants(comps, parent as any);
   if (p.name) set.name = p.name;
-
   // Reset combineAsVariants' defaults so setupFrameNode applies cleanly
   set.layoutMode = "NONE";
-  set.fills = [];
   set.cornerRadius = 0;
 
+  // setupFrameNode handles x/y, fills reset, normalizeAliases, and all layout/styling
   const { hints } = await setupFrameNode(set as any, p);
 
   // Carry forward hints from inline variant creation
