@@ -65,6 +65,10 @@ done
 sed -i '' "s/const VIBMA_VERSION = \"[^\"]*\"/const VIBMA_VERSION = \"$VERSION\"/" \
   packages/adapter-figma/src/plugin/ui.html
 echo "  packages/adapter-figma/src/plugin/ui.html -> $VERSION"
+
+# Sync lockfile with bumped versions (workspace packages are tracked in package-lock.json)
+echo "Syncing package-lock.json..."
+npm install --package-lock-only --silent
 echo ""
 
 # ── Commit, tag, push ────────────────────────────────────────────────
@@ -72,6 +76,7 @@ echo ""
 echo "Committing and tagging..."
 git add packages/core/package.json packages/adapter-figma/package.json packages/tunnel/package.json
 git add -f packages/adapter-figma/src/plugin/ui.html
+git add package-lock.json
 git commit -m "release: $TAG"
 git tag "$TAG"
 
