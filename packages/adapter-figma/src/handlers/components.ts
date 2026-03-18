@@ -394,6 +394,7 @@ async function combineSingle(p: any) {
     const compIds: string[] = [];
     const hints: Hint[] = [];
     for (const child of p.children) {
+      child._skipOverlapCheck = true; // transient — will be combined into variant set
       const result = await createComponentSingle(child);
       if (!result.id) throw new Error(`Failed to create variant component "${child.name}"`);
       compIds.push(result.id);

@@ -164,9 +164,10 @@ export async function setupFrameNode(
   // Append to parent + apply sizing (FILL deferred, smart cross-axis defaults, FIXED warning)
   const parent = await appendAndApplySizing(node, p, hints);
 
-  // Overlapping children: only check when agent explicitly set position.
-  // Nodes at default (0,0) without explicit x/y are not intentionally placed — no overlap warning.
-  if (p.x !== undefined || p.y !== undefined) {
+  // Overlapping children: detect sibling at same position in non-auto-layout parent.
+  // Callers can set _skipOverlapCheck to suppress for transient nodes (e.g. variant children
+  // that will be combined into a set immediately after creation).
+  if (!p._skipOverlapCheck) {
     checkOverlappingSiblings(node, parent, hints);
   }
 
