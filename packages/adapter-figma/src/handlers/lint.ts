@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, isSmallIntrinsic } from "./helpers";
 import { auditComponentBindings } from "./components";
 import { rgbaToHex } from "@ufira/vibma/utils/color";
 import {
@@ -255,7 +255,7 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const hasFillChildren = children.some(c => "layoutSizingHorizontal" in c && (c as any).layoutSizingHorizontal === "FILL");
       const hasLongText = children.some(c => c.type === "TEXT" && ((c as any).characters?.length ?? 0) > 20);
 
-      if (isRoot && (hasLongText || hasFillChildren)) {
+      if (isRoot && (hasLongText || hasFillChildren) && !isSmallIntrinsic(node)) {
         // Root container with text/FILL children — no width constraint
         issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, extra: { context: "root", hasText: hasTextChildren, hasFillChildren } });
         if (issues.length >= ctx.maxFindings) return;
@@ -426,8 +426,11 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       for (const child of (node as any).children) {
         if (issues.length >= ctx.maxFindings) break;
         if (!("layoutSizingHorizontal" in child)) continue;
+        // ABSOLUTE children are intentionally FIXED (taken out of flow)
+        if ((child as any).layoutPositioning === "ABSOLUTE") continue;
         if (child.layoutSizingHorizontal === "FIXED" && child.layoutSizingVertical === "FIXED") {
-          issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, extra: { parentId: node.id, parentName: node.name, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
+          const leafSeverity: Severity | undefined = isLeaf(child) ? "style" : undefined;
+          issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, severity: leafSeverity, extra: { parentId: node.id, parentName: node.name, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
         }
       }
       if (issues.length >= ctx.maxFindings) return;

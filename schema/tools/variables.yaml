@@ -8,7 +8,7 @@ notes: |
   // Use variable_collections to create full token sets (collection + modes + variables in one call).
   // ---
   // query: prefix match first, then substring. "bg/" matches bg/canvas, bg/surface, etc.
-  // valuesByMode: values keyed by mode name. value is shorthand for the default mode.
+  // valuesByMode: values keyed by mode name. On create, value sets all modes; on update, value sets the default mode only.
   // Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
   // scopes: ALL_SCOPES, TEXT_CONTENT, WIDTH_HEIGHT, GAP, CORNER_RADIUS, ALL_FILLS, FRAME_FILL, SHAPE_FILL,
   //   TEXT_FILL, STROKE_COLOR, STROKE_FLOAT, EFFECT_FLOAT, EFFECT_COLOR, OPACITY, FONT_FAMILY, FONT_STYLE,
@@ -87,7 +87,7 @@ methods:
 
   create:
     tier: create
-    description: "Create variables in a collection. Use valuesByMode for multi-mode, or value for default mode only."
+    description: "Create variables in a collection. Use valuesByMode for per-mode control, or value to set all modes at once."
     example: 'variables(method:"create", collectionId:"Colors", items:[{name:"bg/primary", type:"COLOR", valuesByMode:{"Light":"#FFF","Dark":"#111"}, scopes:["ALL_FILLS"]}])'
     params:
       collectionId:
@@ -105,7 +105,7 @@ methods:
           properties:
             name: { type: string, required: true, description: "Variable name (must be unique within collection)" }
             type: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
-            value: { type: variable_value, optional: true, description: "Shorthand — sets the default mode value. Use valuesByMode for multi-mode." }
+            value: { type: variable_value, optional: true, description: "Sets all modes to this value. Use valuesByMode for per-mode control." }
             valuesByMode:
               type: object
               coerce: json

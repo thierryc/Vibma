@@ -314,11 +314,16 @@ export function applySizing(
   for (const axis of axes) {
     let { value } = axis;
     const { field, inferred, reason } = axis;
-    if (!value || !(field in node)) continue;
+    if (!value) continue;
+    if (!(field in node)) {
+      hints.push({ type: "warn", message: `${field} not supported on ${node.type} — ignored. Sizing only applies to frames, components, instances, and text.` });
+      continue;
+    }
 
     // FILL needs an AL parent — downgrade to HUG to avoid clipping at arbitrary size
     if (value === "FILL" && !parentIsAL) {
-      hints.push({ type: "warn", message: `${field}:'FILL' requires an auto-layout parent — using HUG instead. Set the parent's layoutMode to enable auto-layout for FILL.` });
+      const parentDesc = parent ? `parent "${(parent as any).name || parent.id}"` : "parent";
+      hints.push({ type: "warn", message: `${field}:'FILL' requires an auto-layout parent — using HUG instead. Set ${parentDesc}'s layoutMode to enable auto-layout for FILL.` });
       value = "HUG";
     }
 
@@ -349,9 +354,14 @@ export function applySizing(
 
 
   // ── Post-apply: warn about FIXED/FIXED inside auto-layout ─────
+  // Skip small leaf nodes (icons, dots) — FIXED is intentional
   if (parentIsAL) {
     if ((node as any).layoutSizingHorizontal === "FIXED" && (node as any).layoutSizingVertical === "FIXED") {
-      hints.push({ type: "warn", message: "Child has FIXED sizing on both axes inside auto-layout parent. Consider 'FILL' or 'HUG' for responsive layout." });
+      const w = (node as any).width ?? 0;
+      const h = (node as any).height ?? 0;
+      if (w >= 100 && h >= 100) {
+        hints.push({ type: "warn", message: "Child has FIXED sizing on both axes inside auto-layout parent. Consider 'FILL' or 'HUG' for responsive layout." });
+      }
     }
   }
 
@@ -411,6 +421,13 @@ export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | nul
   if (overlapping.length > 0) {
     hints.push({ type: "warn", message: `Overlapping sibling(s) at (${nx},${ny}): [${overlapping.map(s => s.name).join(", ")}]. Set distinct x/y or convert parent to auto-layout.` });
   }
+}
+
+/** Small intrinsic container (buttons, badges) — mute HUG×HUG warnings. */
+export function isSmallIntrinsic(node: any): boolean {
+  const bb = node.absoluteBoundingBox ?? node;
+  const children = "children" in node ? (node as any).children : [];
+  return (bb.width < 100 || bb.height < 100) || children.length < 3;
 }
 
 /**

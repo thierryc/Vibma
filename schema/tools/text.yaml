@@ -57,6 +57,10 @@ methods:
             fontWeight:
               type: number
               description: "100-900 (default: 400). Ignored when fontStyle is set."
+            lineHeight: { type: line_height, optional: true }
+            letterSpacing: { type: letter_spacing, optional: true }
+            textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
+            textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
             fills:
               type: array
               description: "Text color paints — e.g. [{type: 'SOLID', color: '#hex'}]. Same as node fills."

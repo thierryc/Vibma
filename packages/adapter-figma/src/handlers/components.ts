@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, isSmallIntrinsic, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
 import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
@@ -291,7 +291,7 @@ async function createComponentSingle(p: any) {
     }
 
     // Warn if component has text children but no width constraint
-    if (comp.layoutMode !== "NONE" && comp.layoutSizingHorizontal === "HUG" && comp.layoutSizingVertical === "HUG") {
+    if (comp.layoutMode !== "NONE" && comp.layoutSizingHorizontal === "HUG" && comp.layoutSizingVertical === "HUG" && !isSmallIntrinsic(comp)) {
       const allText = findTextNodes(comp, true);
       if (allText.length > 0 && allText.some(t => (t.characters?.length ?? 0) > 20)) {
         hints.push({ type: "warn", message: `"${comp.name}" has text content but no width constraint — text won't wrap. Set a width and layoutSizingHorizontal:"FIXED".` });

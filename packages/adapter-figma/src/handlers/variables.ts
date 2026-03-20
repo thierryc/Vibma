@@ -7,6 +7,31 @@ import {
   variableCollectionsAddMode, variableCollectionsRenameMode, variableCollectionsRemoveMode,
 } from "@ufira/vibma/guards";
 
+// ─── Scope Validation ────────────────────────────────────────────
+
+const VALID_SCOPES = new Set([
+  "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP", "CORNER_RADIUS",
+  "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL",
+  "STROKE_COLOR", "STROKE_FLOAT", "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY",
+  "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE",
+  "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT",
+  "TRANSFORM",
+]);
+
+function applyScopes(variable: any, scopes: string[], hints: Hint[]): void {
+  const invalid = scopes.filter((s: string) => !VALID_SCOPES.has(s));
+  if (invalid.length > 0) {
+    hints.push({
+      type: "warn",
+      message: `Invalid scope(s): [${invalid.join(", ")}] — coerced to ALL_SCOPES. Valid: [${[...VALID_SCOPES].join(", ")}]. Fix: variables(method:"update", items:[{name:"${variable.name}", scopes:[...]}])`,
+    });
+    variable.scopes = ["ALL_SCOPES"];
+    return;
+  }
+  try { variable.scopes = scopes; }
+  catch (e: any) { hints.push({ type: "error", message: `in set_scopes: ${e.message}` }); }
+}
+
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 /** Resolve a variable collection by ID or name.
@@ -148,14 +173,14 @@ async function createCollectionSingle(p: any) {
 
       if (vDef.description !== undefined) refetched.description = vDef.description;
 
-      // Set values: valuesByMode takes precedence, value is shorthand for default mode
+      // Set values: valuesByMode takes precedence, value applies to ALL modes on create
       const valuesToSet: Record<string, any> = {};
       if (vDef.valuesByMode && typeof vDef.valuesByMode === "object") {
         Object.assign(valuesToSet, vDef.valuesByMode);
       } else if (vDef.value !== undefined) {
-        // Find the first mode name (default mode)
-        const defaultModeName = collection.modes[0]?.name;
-        if (defaultModeName) valuesToSet[defaultModeName] = vDef.value;
+        for (const mode of collection.modes) {
+          valuesToSet[mode.name] = vDef.value;
+        }
       }
 
       for (const [modeName, rawValue] of Object.entries(valuesToSet)) {
@@ -173,8 +198,7 @@ async function createCollectionSingle(p: any) {
       }
 
       if (vDef.scopes !== undefined) {
-        try { refetched.scopes = vDef.scopes; }
-        catch (e: any) { hints.push({ type: "error", message: `in set_scopes for "${vDef.name}": ${e.message}` }); }
+        applyScopes(refetched, vDef.scopes, hints);
       }
     }
   }
@@ -273,13 +297,14 @@ async function createVariableSingle(p: any, collection: any) {
 
   const hints: Hint[] = [];
 
-  // Set values: valuesByMode takes precedence, value is shorthand for default mode
+  // Set values: valuesByMode takes precedence, value applies to ALL modes on create
   const valuesToSet: Record<string, any> = {};
   if (p.valuesByMode && typeof p.valuesByMode === "object") {
     Object.assign(valuesToSet, p.valuesByMode);
   } else if (p.value !== undefined) {
-    const defaultModeName = collection.modes[0]?.name;
-    if (defaultModeName) valuesToSet[defaultModeName] = p.value;
+    for (const mode of collection.modes) {
+      valuesToSet[mode.name] = p.value;
+    }
   }
 
   const modeMap = new Map<string, string>(
@@ -296,8 +321,7 @@ async function createVariableSingle(p: any, collection: any) {
   }
 
   if (p.scopes !== undefined) {
-    try { variable.scopes = p.scopes; }
-    catch (e: any) { hints.push({ type: "error", message: `in set_scopes: ${e.message}` }); }
+    applyScopes(variable, p.scopes, hints);
   }
 
   // Echo back resolved values so the agent sees what was actually set per mode
@@ -385,9 +409,11 @@ async function updateVariableSingle(p: any, collection: any) {
   const variable = await findVariableByName(p.name, collection.name);
   if (!variable) throw new Error(`Variable not found: ${p.name} in collection "${collection.name}"`);
 
+  const hints: Hint[] = [];
+
   if (p.rename !== undefined) variable.name = p.rename;
   if (p.description !== undefined) variable.description = p.description;
-  if (p.scopes !== undefined) variable.scopes = p.scopes;
+  if (p.scopes !== undefined) applyScopes(variable, p.scopes, hints);
 
   // Set values: valuesByMode takes precedence, value is shorthand for default mode
   const valuesToSet: Record<string, any> = {};
@@ -409,6 +435,7 @@ async function updateVariableSingle(p: any, collection: any) {
     }
   }
 
+  if (hints.length > 0) return { hints };
   return {};
 }
 

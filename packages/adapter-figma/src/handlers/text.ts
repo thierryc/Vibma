@@ -1,4 +1,4 @@
-import { batchHandler, applyFillWithAutoBind, applySizing, suggestTextStyle, type Hint } from "./helpers";
+import { batchHandler, applyFillWithAutoBind, applySizing, isSmallIntrinsic, suggestTextStyle, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -133,8 +133,26 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     if (p.fontSize !== undefined) node.fontSize = p.fontSize;
   }
 
+  // Text properties: lineHeight, letterSpacing, textCase, textDecoration
+  if (p.lineHeight !== undefined) {
+    if (typeof p.lineHeight === "number") node.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
+    else if (p.lineHeight.unit === "AUTO") node.lineHeight = { unit: "AUTO" };
+    else node.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
+  }
+  if (p.letterSpacing !== undefined) {
+    if (typeof p.letterSpacing === "number") node.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
+    else node.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
+  }
+  if (p.textCase) node.textCase = p.textCase;
+  if (p.textDecoration) node.textDecoration = p.textDecoration;
+
   // Text color: fills is canonical (normalized from fontColor* by batchHandler)
   const warnings: Hint[] = [];
+
+  // lineHeight PERCENT < 10 warning
+  if (p.lineHeight !== undefined && typeof p.lineHeight === "object" && p.lineHeight.unit === "PERCENT" && p.lineHeight.value < 10) {
+    warnings.push({ type: "warn", message: `lineHeight ${p.lineHeight.value}% looks wrong — did you mean ${Math.round(p.lineHeight.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
+  }
   if (p.fills !== undefined) {
     await applyFillWithAutoBind(node, { fills: p.fills }, warnings);
   }
@@ -149,7 +167,7 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if ((p.layoutSizingHorizontal || p.layoutSizingVertical) &&
       node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
     const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
-    if (parentIsAL) {
+    if (parentIsAL && !isSmallIntrinsic(node.parent!)) {
       warnings.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
     }
   }

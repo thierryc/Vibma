@@ -185,6 +185,19 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
     textNode.fontName = resolvedFont;
     textNode.fontSize = parseInt(String(fontSize));
 
+    // Text properties: lineHeight, letterSpacing, textCase, textDecoration
+    if (p.lineHeight !== undefined) {
+      if (typeof p.lineHeight === "number") textNode.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
+      else if (p.lineHeight.unit === "AUTO") textNode.lineHeight = { unit: "AUTO" };
+      else textNode.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
+    }
+    if (p.letterSpacing !== undefined) {
+      if (typeof p.letterSpacing === "number") textNode.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
+      else textNode.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
+    }
+    if (p.textCase) textNode.textCase = p.textCase;
+    if (p.textDecoration) textNode.textDecoration = p.textDecoration;
+
     await ctx.setCharacters(textNode, text);
 
     if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
@@ -192,6 +205,11 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
 
     // Text color: fills is canonical (normalized from fontColor/fontColorVariableName/fontColorStyleName by batchHandler)
     const hints: Hint[] = [];
+
+    // lineHeight PERCENT < 10 warning
+    if (p.lineHeight !== undefined && typeof p.lineHeight === "object" && p.lineHeight.unit === "PERCENT" && p.lineHeight.value < 10) {
+      hints.push({ type: "warn", message: `lineHeight ${p.lineHeight.value}% looks wrong — did you mean ${Math.round(p.lineHeight.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
+    }
     const colorSet = await applyFillWithAutoBind(textNode, { fills }, hints);
     if (!colorSet && fills === undefined) {
       // Default black for text with no color specified

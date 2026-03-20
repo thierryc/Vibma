@@ -16,6 +16,8 @@ function paramLines(name: string, param: RawParam, indent = 4): string[] {
   if (param.values) type = param.values.join(" | ");
   if (param.coerce === "hex_or_rgba" || type === "color") type = "Color";
   if (type === "token") type = "string";
+  if (type === "line_height") type = 'number | {value, unit: "PIXELS"|"PERCENT"|"AUTO"}';
+  if (type === "letter_spacing") type = 'number | {value, unit: "PIXELS"|"PERCENT"}';
   const req = param.required === true ? "required" : "optional";
   const desc = param.description ? ` — ${param.description}` : "";
   const lines: string[] = [];

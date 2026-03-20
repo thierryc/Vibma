@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, isSmallIntrinsic, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
@@ -180,7 +180,7 @@ export async function setupFrameNode(
     const hasTextChildren = children.some((c: any) => c.type === "TEXT");
     const hasFillChildren = children.some((c: any) => c.layoutSizingHorizontal === "FILL");
 
-    if (isRoot && (hasTextChildren || hasFillChildren)) {
+    if (isRoot && (hasTextChildren || hasFillChildren) && !isSmallIntrinsic(node)) {
       const name = node.name || "Frame";
       hints.push({ type: "warn", message: `"${name}" has HUG on both axes with ${hasTextChildren ? "text" : "FILL"} children but no width constraint. Text won't wrap and FILL children collapse. Set a width and layoutSizingHorizontal:"FIXED".` });
     }

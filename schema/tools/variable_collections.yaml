@@ -96,7 +96,7 @@ methods:
                 properties:
                   name: { type: string, required: true, description: "Variable name (unique within collection)" }
                   type: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
-                  value: { type: variable_value, optional: true, description: "Shorthand — sets the default mode value. Use valuesByMode for multi-mode." }
+                  value: { type: variable_value, optional: true, description: "Sets all modes to this value. Use valuesByMode for per-mode control." }
                   valuesByMode:
                     type: object
                     coerce: json
