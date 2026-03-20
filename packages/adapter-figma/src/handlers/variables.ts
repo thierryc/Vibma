@@ -300,7 +300,43 @@ async function createVariableSingle(p: any, collection: any) {
     catch (e: any) { hints.push({ type: "error", message: `in set_scopes: ${e.message}` }); }
   }
 
-  const result: any = { name: variable.name };
+  // Echo back resolved values so the agent sees what was actually set per mode
+  const resolvedValues: Record<string, any> = {};
+  for (const mode of collection.modes) {
+    const val = variable.valuesByMode[mode.modeId];
+    if (val && typeof val === "object" && "r" in val) {
+      resolvedValues[mode.name] = rgbaToHex(val);
+    } else if (val !== undefined) {
+      resolvedValues[mode.name] = val;
+    }
+  }
+
+  // Warn if an existing variable in the same collection already has the same color value.
+  // Suggests binding to the existing variable as an alias instead of duplicating.
+  if (resolvedType === "COLOR") {
+    const existing = await figma.variables.getLocalVariablesAsync("COLOR");
+    const siblings = existing.filter(v => v.variableCollectionId === collection.id && v.id !== variable.id);
+    for (const mode of collection.modes) {
+      const newVal = variable.valuesByMode[mode.modeId];
+      if (!newVal || typeof newVal !== "object" || !("r" in newVal)) continue;
+      const newHex = rgbaToHex(newVal);
+      for (const sib of siblings) {
+        const sibVal = sib.valuesByMode[mode.modeId];
+        if (!sibVal || typeof sibVal !== "object" || !("r" in sibVal)) continue;
+        if (rgbaToHex(sibVal) === newHex) {
+          hints.push({
+            type: "warn",
+            message: `"${variable.name}" has the same ${mode.name} value (${newHex}) as existing variable "${sib.name}". ` +
+              `If they should stay in sync, bind as alias: variables(method:"update", collectionId:"${collection.name}", ` +
+              `items:[{name:"${variable.name}", valuesByMode:{"${mode.name}":"{${sib.name}}"}}])`,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  const result: any = { name: variable.name, resolvedValues };
   if (hints.length > 0) result.hints = hints;
   return result;
 }
