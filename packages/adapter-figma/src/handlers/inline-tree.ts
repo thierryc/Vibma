@@ -372,6 +372,30 @@ export function validateAndFixInlineChildren(parentParams: any, hints: Hint[]): 
   };
   const parentName = parentParams.name || "(root)";
   const inferences: Inference[] = [];
+
+  // Root parent: FIXED without dimension → HUG (content + padding drives size)
+  if (parentLM && parentLM !== "NONE") {
+    const axes: Array<{ field: "layoutSizingHorizontal" | "layoutSizingVertical"; dim: "width" | "height" }> = [
+      { field: "layoutSizingHorizontal", dim: "width" },
+      { field: "layoutSizingVertical", dim: "height" },
+    ];
+    for (const { field, dim } of axes) {
+      if (parentParams[field] === "FIXED" && parentParams[dim] === undefined) {
+        parentParams[field] = "HUG";
+        inferences.push({
+          path: parentName, field, from: "FIXED", to: "HUG", confidence: "deterministic",
+          reason: `FIXED without ${dim} — using HUG to size from content`,
+        });
+        hints.push({
+          type: "confirm",
+          message: `${field}:'FIXED' without ${dim} — using HUG to size from content + padding.`,
+        });
+        if (field === "layoutSizingHorizontal") parentCtx.sizingH = "HUG";
+        else parentCtx.sizingV = "HUG";
+      }
+    }
+  }
+
   const tree = buildInlineTree(parentParams.children, parentCtx, parentName);
   validateInlineTree(tree, parentParams, parentName, hints, inferences);
 
